@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   scan_ruby:
@@ -55,7 +55,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql
+        image: mysql:8.0.42
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: true
         ports:
@@ -83,7 +83,8 @@ jobs:
       - name: Run tests
         env:
           RAILS_ENV: test
-          DATABASE_URL: mysql2://127.0.0.1:3306
+          DATABASE_URL: mysql2://root@127.0.0.1:3306/el_mourdy_backend_test
+          SECURITY_PEPPER: ci-only-security-pepper
           # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           # REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test

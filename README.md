@@ -80,4 +80,12 @@ bundle exec brakeman --no-pager
 
 ## Status
 
-The database foundation is implemented and verified against MySQL 8. API resources, authentication services, authorization policies, OTP delivery, and business workflows will be added incrementally on top of this schema.
+The production database foundation, integrity constraints, Active Record domain models, concurrency-safe database services, deterministic seeds, and automated database tests are implemented and verified against MySQL 8.
+
+Detailed references:
+
+- [Database design](docs/database-design.md)
+- [Rails database learning guide](docs/learning-guide.md)
+- [Production database operations](docs/production-operations.md)
+
+API resources, authentication controllers, authorization policies, and WhatsApp OTP delivery will be added incrementally on top of this foundation.
