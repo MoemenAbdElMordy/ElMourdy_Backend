@@ -85,7 +85,6 @@ The production database foundation, integrity constraints, Active Record domain 
 Detailed references:
 
 - [Database design](docs/database-design.md)
-- [Rails database learning guide](docs/learning-guide.md)
 - [Production database operations](docs/production-operations.md)
 
 API resources, authentication controllers, authorization policies, and WhatsApp OTP delivery will be added incrementally on top of this foundation.
