@@ -55,15 +55,6 @@ module Api
       )
     end
 
-    def serialize_user(user)
-      {
-        id: user.id,
-        name: user.name,
-        phone: user.phone_e164,
-        role: user.role
-      }
-    end
-
     def render_invalid_credentials
       render json: {
         error: { code: "invalid_credentials", message: "Phone number or password is incorrect" }

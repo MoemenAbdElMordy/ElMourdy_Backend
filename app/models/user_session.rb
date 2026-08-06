@@ -1,4 +1,6 @@
 class UserSession < ApplicationRecord
+  STALE_AFTER = 30.days
+
   enum :status, { active: 0, ended: 1, revoked: 2 }, validate: true
 
   belongs_to :user
@@ -9,6 +11,11 @@ class UserSession < ApplicationRecord
   validate :student_session_has_device
 
   scope :live, -> { active.order(last_seen_at: :desc) }
+  scope :stale, ->(at = Time.current) { active.where(last_seen_at: ...STALE_AFTER.ago(at)) }
+
+  def stale?(at = Time.current)
+    last_seen_at < STALE_AFTER.ago(at)
+  end
 
   private
 

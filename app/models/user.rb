@@ -17,6 +17,7 @@ class User < ApplicationRecord
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :phone_e164, presence: true, uniqueness: true
+  validates :password, length: { minimum: 8 }, allow_nil: true
   validates_e164_phone :phone_e164
 
   scope :available_for_login, -> { active.where.not(phone_verified_at: nil) }

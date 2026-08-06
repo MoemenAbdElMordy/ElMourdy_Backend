@@ -6,6 +6,16 @@ Rails.application.routes.draw do
     resources :otp_verifications, only: :create do
       post :verify, on: :member
     end
+    post "registrations/student", to: "registrations#create_student"
+    post "registrations/parent", to: "registrations#create_parent"
+    post "registrations/:id/verify", to: "registrations#verify"
+    post "registrations/:id/resend", to: "registrations#resend"
+    resource :profile, only: %i[show update] do
+      patch :password
+    end
+    resources :devices, only: %i[index destroy] do
+      post :removal_request, on: :member
+    end
     get "webhooks/whatsapp", to: "whatsapp_webhooks#show"
     post "webhooks/whatsapp", to: "whatsapp_webhooks#create"
   end
