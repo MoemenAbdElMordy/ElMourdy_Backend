@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_19_000200) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_160000) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -433,6 +433,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_000200) do
     t.string "governorate"
     t.text "notes"
     t.string "parent_phone_e164", limit: 20, null: false
+    t.string "school"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["parent_phone_e164"], name: "index_student_profiles_on_parent_phone_e164"
@@ -486,6 +487,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_000200) do
 
   create_table "users", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "email"
     t.datetime "last_login_at"
     t.string "name", null: false
     t.string "password_digest", null: false
@@ -495,6 +497,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_000200) do
     t.integer "role", null: false
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["phone_e164"], name: "index_users_on_phone_e164", unique: true
     t.index ["role", "status"], name: "index_users_on_role_and_status"
     t.index ["status", "last_login_at"], name: "index_users_on_status_and_last_login_at"

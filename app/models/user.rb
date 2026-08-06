@@ -17,6 +17,7 @@ class User < ApplicationRecord
 
   validates :name, presence: true, length: { maximum: 255 }
   validates :phone_e164, presence: true, uniqueness: true
+  validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, uniqueness: true, allow_blank: true
   validates :password, length: { minimum: 8 }, allow_nil: true
   validates_e164_phone :phone_e164
 

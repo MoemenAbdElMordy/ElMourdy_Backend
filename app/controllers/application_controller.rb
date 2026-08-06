@@ -53,6 +53,13 @@ class ApplicationController < ActionController::API
     render_forbidden unless allowed
   end
 
+  def require_teacher_or_assistant_permission!(permission_key)
+    return if current_user.teacher?
+    return render_forbidden unless current_user.assistant?
+
+    require_assistant_permission!(permission_key)
+  end
+
   def serialize_user(user)
     {
       id: user.id,

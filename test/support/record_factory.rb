@@ -43,6 +43,20 @@ module RecordFactory
     [ year, grade, branch, chapter, lesson ]
   end
 
+  def create_academic_setup
+    grade = Grade.find_or_create_by!(level: 1) do |record|
+      record.name = "First Secondary"
+      record.active = true
+    end
+    year = AcademicYear.create!(
+      name: "#{SecureRandom.hex(4)}/2027",
+      starts_on: Date.new(2026, 9, 1),
+      ends_on: Date.new(2027, 8, 31),
+      status: :active
+    )
+    [ year, grade ]
+  end
+
   def create_exam
     year, grade, _branch, _chapter, lesson = create_curriculum
     exam = Exam.create!(

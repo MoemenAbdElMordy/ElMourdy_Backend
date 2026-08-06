@@ -46,11 +46,17 @@ module Registrations
           name: @attributes.fetch(:name),
           phone_e164: phone,
           phone_display: @attributes.fetch(:phone),
+          email: @attributes[:email],
           password: @attributes.fetch(:password),
           password_confirmation: @attributes.fetch(:password_confirmation)
         )
 
-        @role == :student ? create_student_profile(user, parent_phone) : create_parent_profile(user)
+        if @role == :student
+          profile = create_student_profile(user, parent_phone)
+          create_student_enrollment(profile)
+        else
+          create_parent_profile(user)
+        end
         user
       end
     end
@@ -60,7 +66,24 @@ module Registrations
         user:,
         birth_date: @attributes.fetch(:birth_date),
         parent_phone_e164: parent_phone,
-        governorate: @attributes[:governorate]
+        governorate: @attributes[:governorate],
+        school: @attributes[:school]
+      )
+    end
+
+    def create_student_enrollment(profile)
+      year = AcademicYear.active.order(starts_on: :desc).first
+      raise Error, "No active academic year is available" unless year
+
+      grade = Grade.enabled.find_by(level: @attributes.fetch(:grade_level))
+      raise Error, "The selected grade is invalid" unless grade
+
+      StudentEnrollment.create!(
+        student_profile: profile,
+        academic_year: year,
+        grade:,
+        enrolled_at: Time.current,
+        status: :active
       )
     end
 

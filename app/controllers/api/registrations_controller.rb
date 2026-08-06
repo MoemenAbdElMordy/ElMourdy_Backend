@@ -39,7 +39,8 @@ module Api
 
     def student_params
       params.require(:registration).permit(
-        :name, :phone, :password, :password_confirmation, :birth_date, :parent_phone, :governorate
+        :name, :phone, :email, :password, :password_confirmation, :birth_date, :parent_phone,
+        :governorate, :school, :grade_level
       )
     end
 

@@ -2,6 +2,7 @@ require "test_helper"
 
 class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
   test "registers and verifies a student" do
+    year, grade = create_academic_setup
     post "/api/registrations/student", params: {
       registration: {
         name: "New Student",
@@ -9,6 +10,9 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
         parent_phone: "01112345678",
         birth_date: "2008-04-16",
         governorate: "Cairo",
+        school: "Test School",
+        email: "new.student@example.test",
+        grade_level: grade.level,
         password: "ValidPassword123!",
         password_confirmation: "ValidPassword123!"
       }
@@ -29,7 +33,12 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert response.parsed_body["token"].present?
     assert_equal "student", response.parsed_body.dig("user", "role")
-    assert User.find(registration["registration_id"]).phone_verified_at.present?
+    user = User.find(registration["registration_id"])
+    assert user.phone_verified_at.present?
+    assert_equal year, user.student_profile.student_enrollments.active.first.academic_year
+    assert_equal grade, user.student_profile.student_enrollments.active.first.grade
+    assert_equal "Test School", user.student_profile.school
+    assert_equal "new.student@example.test", user.email
   end
 
   test "registers a parent only for a matching student and links the account" do
@@ -60,6 +69,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "rejects matching student and parent phone numbers" do
+    _year, grade = create_academic_setup
     post "/api/registrations/student", params: {
       registration: {
         name: "New Student",
@@ -67,6 +77,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
         parent_phone: "+201012345678",
         birth_date: "2008-04-16",
         governorate: "Cairo",
+        grade_level: grade.level,
         password: "ValidPassword123!",
         password_confirmation: "ValidPassword123!"
       }

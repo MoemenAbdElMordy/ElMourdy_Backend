@@ -16,6 +16,10 @@ Rails.application.routes.draw do
     resources :devices, only: %i[index destroy] do
       post :removal_request, on: :member
     end
+    resources :academic_years, only: %i[index create update]
+    resources :grades, only: :index
+    resources :students, only: %i[index show update]
+    resources :assistants, only: %i[index create update destroy]
     get "webhooks/whatsapp", to: "whatsapp_webhooks#show"
     post "webhooks/whatsapp", to: "whatsapp_webhooks#create"
   end
