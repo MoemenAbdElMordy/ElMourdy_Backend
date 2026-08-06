@@ -20,6 +20,19 @@ Rails.application.routes.draw do
     resources :grades, only: :index
     resources :students, only: %i[index show update]
     resources :assistants, only: %i[index create update destroy]
+    get "curriculum", to: "curriculum#show"
+    resources :branches, only: %i[create update destroy] do
+      patch :reorder, on: :collection
+    end
+    resources :chapters, only: %i[create update destroy] do
+      patch :reorder, on: :collection
+    end
+    resources :lessons, only: %i[create update destroy] do
+      patch :reorder, on: :collection
+    end
+    resources :lectures, only: %i[create update destroy] do
+      patch :reorder, on: :collection
+    end
     get "webhooks/whatsapp", to: "whatsapp_webhooks#show"
     post "webhooks/whatsapp", to: "whatsapp_webhooks#create"
   end

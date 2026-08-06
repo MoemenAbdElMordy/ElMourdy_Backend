@@ -2,6 +2,8 @@ class ApplicationController < ActionController::API
   rescue_from ActionController::ParameterMissing, with: :render_bad_request
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
   rescue_from ActiveRecord::RecordInvalid, with: :render_unprocessable_entity
+  rescue_from ActiveRecord::DeleteRestrictionError, with: :render_delete_conflict
+  rescue_from ActiveRecord::RecordNotDestroyed, with: :render_delete_conflict
   rescue_from ApplicationService::Error, with: :render_unprocessable_entity
 
   private
@@ -95,5 +97,11 @@ class ApplicationController < ActionController::API
     render json: {
       error: { code: "unprocessable_entity", message: "The request could not be processed", details: messages }
     }, status: :unprocessable_entity
+  end
+
+  def render_delete_conflict(error)
+    render json: {
+      error: { code: "dependency_conflict", message: "Remove dependent content before deleting this item", details: [ error.message ] }
+    }, status: :conflict
   end
 end
