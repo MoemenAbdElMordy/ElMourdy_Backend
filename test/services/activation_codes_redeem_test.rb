@@ -4,6 +4,7 @@ class ActivationCodesRedeemTest < ActiveSupport::TestCase
   test "redeems a code and creates one lesson entitlement atomically" do
     student = create_student
     year, grade, _branch, _chapter, lesson = create_curriculum
+    StudentEnrollment.create!(student_profile: student, academic_year: year, grade:, status: :active, enrolled_at: Time.current)
     raw_code = "ELMOURDY-TEST-001"
     batch = ActivationCodeBatch.create!(
       lesson:,
@@ -30,6 +31,9 @@ class ActivationCodesRedeemTest < ActiveSupport::TestCase
     first_student = create_student
     second_student = create_student
     year, grade, _branch, _chapter, lesson = create_curriculum
+    [ first_student, second_student ].each do |student|
+      StudentEnrollment.create!(student_profile: student, academic_year: year, grade:, status: :active, enrolled_at: Time.current)
+    end
     raw_code = "ELMOURDY-TEST-002"
     batch = ActivationCodeBatch.create!(
       lesson:,

@@ -4,7 +4,7 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :render_unprocessable_entity
   rescue_from ActiveRecord::DeleteRestrictionError, with: :render_delete_conflict
   rescue_from ActiveRecord::RecordNotDestroyed, with: :render_delete_conflict
-  rescue_from ApplicationService::Error, with: :render_unprocessable_entity
+  rescue_from ApplicationService::Error, with: :render_service_error
 
   private
 
@@ -96,6 +96,12 @@ class ApplicationController < ActionController::API
     messages = error.respond_to?(:record) ? error.record.errors.full_messages : [ error.message ]
     render json: {
       error: { code: "unprocessable_entity", message: "The request could not be processed", details: messages }
+    }, status: :unprocessable_entity
+  end
+
+  def render_service_error(error)
+    render json: {
+      error: { code: "business_rule_violation", message: error.message, details: [ error.message ] }
     }, status: :unprocessable_entity
   end
 

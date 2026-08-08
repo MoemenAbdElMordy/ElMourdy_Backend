@@ -17,6 +17,16 @@ module ActivationCodes
 
         raise Error, "Activation code is not redeemable" unless code.unused? && code.deleted_at.nil?
         raise Error, "Activation code has expired" if batch.expires_on < @at.to_date
+        enrollment = @student_profile.student_enrollments.active.find_by(academic_year: batch.academic_year)
+        raise Error, "Activation code is not valid for the student's grade" unless enrollment&.grade_id == batch.grade_id
+        grant = LessonAccessGrant.find_or_initialize_by(
+          student_profile: @student_profile,
+          lesson: batch.lesson,
+          academic_year: batch.academic_year
+        )
+        if grant.persisted? && grant.active? && grant.expires_on >= @at.to_date
+          raise Error, "The student already has access to this lesson"
+        end
 
         code.update!(
           status: :redeemed,
@@ -24,16 +34,16 @@ module ActivationCodes
           redeemed_at: @at
         )
 
-        LessonAccessGrant.create!(
-          student_profile: @student_profile,
-          lesson: batch.lesson,
-          academic_year: batch.academic_year,
+        grant.update!(
           activation_code: code,
           source: :code,
           expires_on: batch.expires_on,
           status: :active
         )
+        grant
       end
+    rescue ActiveRecord::RecordNotFound
+      raise Error, "Activation code is invalid"
     rescue ActiveRecord::RecordNotUnique
       raise Error, "The student already has access to this lesson"
     end

@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "elmourdy-video-gateway",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+  "preview_urls": false,
+  "r2_buckets": [
+    {
+      "binding": "VIDEOS",
+      "bucket_name": "elmourdy-videos"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGIN": "http://localhost:5173"
+  }
+}

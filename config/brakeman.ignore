@@ -1,0 +1,9 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "ed4326392a970a922f7c2ddd2534a924c6e62c9b45aa76d9469ec40039a57a5d",
+      "note": "Open3 receives an argument array and never invokes a shell. All codec settings are constants, and input/output paths are generated inside a private temporary directory."
+    }
+  ],
+  "updated": "2026-08-08"
+}

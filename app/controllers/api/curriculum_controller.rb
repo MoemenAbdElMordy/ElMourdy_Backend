@@ -25,6 +25,8 @@ module Api
       enrollment = current_user.student_profile.student_enrollments.active.includes(:academic_year, :grade).order(enrolled_at: :desc).first
       return empty_tree unless enrollment
 
+      @accessible_lesson_ids = current_user.student_profile.lesson_access_grants.currently_active
+        .where(academic_year: enrollment.academic_year).pluck(:lesson_id)
       serialize_tree(year: enrollment.academic_year, grade: enrollment.grade, visible_only: true)
     end
 
@@ -57,7 +59,17 @@ module Api
       lectures = lectures.visible if visible_only
       content_payload(lesson).merge(
         is_free: lesson.is_free,
-        lectures: lectures.map { |lecture| content_payload(lecture).merge(is_free: lecture.is_free, duration_seconds: lecture.duration_seconds) }
+        has_access: !visible_only || lesson.is_free || @accessible_lesson_ids.include?(lesson.id),
+        lectures: lectures.map { |lecture| serialize_lecture(lecture) }
+      )
+    end
+
+    def serialize_lecture(lecture)
+      asset = lecture.video_assets.order(created_at: :desc).first
+      content_payload(lecture).merge(
+        is_free: lecture.is_free,
+        duration_seconds: lecture.duration_seconds,
+        video_asset: asset&.as_json(only: %i[id processing_status duration_seconds available_qualities])
       )
     end
 

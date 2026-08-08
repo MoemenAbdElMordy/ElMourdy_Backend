@@ -32,7 +32,23 @@ Rails.application.routes.draw do
     end
     resources :lectures, only: %i[create update destroy] do
       patch :reorder, on: :collection
+      resource :video_upload, only: %i[create] do
+        put :content
+        post :complete
+      end
+      resource :video_playback, only: :show
     end
+    resources :video_assets, only: %i[show destroy]
+    resources :lecture_watch_events, only: :update
+    get "video_delivery/:video_asset_id/:token/*path", to: "video_delivery#show", as: :video_delivery,
+      constraints: { token: /[^\/]+/ }, format: false
+    resources :activation_code_batches, only: %i[index create] do
+      get :export, on: :member
+    end
+    resources :activation_codes, only: %i[update destroy] do
+      post :redeem, on: :collection
+    end
+    resources :lesson_access_grants, only: %i[index create update]
     get "webhooks/whatsapp", to: "whatsapp_webhooks#show"
     post "webhooks/whatsapp", to: "whatsapp_webhooks#create"
   end

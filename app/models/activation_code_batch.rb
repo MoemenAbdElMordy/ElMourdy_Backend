@@ -6,7 +6,7 @@ class ActivationCodeBatch < ApplicationRecord
   has_many :activation_codes, dependent: :restrict_with_error
 
   validates :name, presence: true
-  validates :quantity, numericality: { only_integer: true, greater_than: 0 }
+  validates :quantity, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 500 }
   validates :expires_on, presence: true
 
   scope :available, -> { where(deleted_at: nil).where("expires_on >= ?", Date.current) }

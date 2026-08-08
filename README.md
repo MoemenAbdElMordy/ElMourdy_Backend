@@ -14,6 +14,9 @@ Payment processing is intentionally outside the current product scope. Lesson ac
 - Rails 8.1 API mode
 - MySQL 8 with `utf8mb4`
 - Puma
+- FFmpeg and FFprobe
+- Cloudflare R2-compatible object storage
+- Solid Queue
 - Minitest
 - RuboCop
 - Brakeman
@@ -23,6 +26,7 @@ Payment processing is intentionally outside the current product scope. Lesson ac
 - Ruby 3.3+
 - Bundler
 - MySQL 8+
+- FFmpeg 7+
 
 ## Setup
 
@@ -69,6 +73,18 @@ bin/rails test
 bundle exec rubocop
 bundle exec brakeman --no-pager
 ```
+
+## Video Pipeline
+
+Large video files upload directly to object storage through short-lived signed URLs. A single-concurrency Solid Queue worker downloads each original, uses FFmpeg to create 360p, 480p, and 720p HLS variants, uploads the generated playlists and segments, and removes the original after successful verification.
+
+Development defaults to local storage under `tmp/video_storage`. Production requires the R2 and media-delivery environment variables documented in `.env.example`. Start durable background processing with:
+
+```bash
+bin/jobs
+```
+
+The media gateway in `cloudflare/video-gateway` validates short-lived playback tokens before reading private HLS objects from R2.
 
 ## Security Notes
 

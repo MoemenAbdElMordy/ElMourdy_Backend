@@ -45,6 +45,11 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     assert_equal grade.id, response.parsed_body.dig("curriculum", "grade", "id")
     assert_equal [ chapter.id ], response.parsed_body.dig("curriculum", "branches", 0, "chapters").pluck("id")
     assert_equal [ lecture.id ], response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures").pluck("id")
+    assert_equal false, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "has_access")
+
+    LessonAccessGrant.create!(student_profile: student, lesson:, academic_year: year, source: :manual, expires_on: year.ends_on, status: :active)
+    get "/api/curriculum", headers: authorization_header(token)
+    assert_equal true, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "has_access")
   end
 
   test "assistant requires content permission" do

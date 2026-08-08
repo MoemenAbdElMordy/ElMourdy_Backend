@@ -49,6 +49,7 @@ module Api
         grade_id: enrollment&.grade_id,
         grade_level: enrollment&.grade&.level,
         academic_year: enrollment&.academic_year&.name,
+        academic_year_id: enrollment&.academic_year_id,
         created_at: user.created_at,
         last_active_at: user.user_sessions.maximum(:last_seen_at)
       }
