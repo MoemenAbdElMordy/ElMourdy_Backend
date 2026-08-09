@@ -29,6 +29,16 @@ module RecordFactory
     ParentProfile.create!(user:, verified_parent_phone_e164: phone)
   end
 
+  def start_test_session(user)
+    device = if user.student?
+      user.student_profile.device_registrations.create!(
+        device_fingerprint_digest: Security::DigestValue.call(SecureRandom.hex(12)),
+        status: :active
+      )
+    end
+    Sessions::Start.call(user:, device_registration: device)
+  end
+
   def create_curriculum
     year = AcademicYear.create!(
       name: "#{SecureRandom.hex(4)}/2027",
@@ -73,7 +83,9 @@ module RecordFactory
       status: :published
     )
     2.times do |index|
-      exam.exam_questions.create!(body: "Question #{index + 1}", points: 1, position: index + 1)
+      question = exam.exam_questions.create!(body: "Question #{index + 1}", points: 1, position: index + 1)
+      question.exam_choices.create!(body: "Correct", is_correct: true, position: 1)
+      question.exam_choices.create!(body: "Incorrect", is_correct: false, position: 2)
     end
     exam
   end

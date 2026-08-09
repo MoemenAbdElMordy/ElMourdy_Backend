@@ -12,7 +12,10 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    @prefixes.each { |prefix| Videos::Storage.build.delete_prefix(prefix) }
+    @prefixes.each do |prefix|
+      Videos::Storage.build.delete_prefix(prefix)
+      Videos::Storage.staging.delete_prefix(prefix)
+    end
   end
 
   test "teacher creates and completes a local direct upload" do
@@ -47,6 +50,39 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_equal "business_rule_violation", response.parsed_body.dig("error", "code")
   end
 
+  test "teacher retries a failed video when the original file still exists" do
+    prefix = "videos/#{SecureRandom.uuid}"
+    @prefixes << prefix
+    asset = VideoAsset.create!(
+      lecture: @lecture,
+      original_file_key: "#{prefix}/original/source.mp4",
+      processing_status: :failed,
+      created_by_user: @teacher
+    )
+    Videos::Storage.staging.put(asset.original_file_key, StringIO.new("video-data"))
+
+    assert_enqueued_with(job: VideoProcessingJob, args: [ asset.id ]) do
+      post retry_processing_api_video_asset_url(asset), headers: authorization(@teacher_token), as: :json
+    end
+
+    assert_response :accepted
+    assert asset.reload.uploaded?
+  end
+
+  test "retry explains when the original video must be uploaded again" do
+    asset = VideoAsset.create!(
+      lecture: @lecture,
+      original_file_key: "videos/missing/original/source.mp4",
+      processing_status: :failed,
+      created_by_user: @teacher
+    )
+
+    post retry_processing_api_video_asset_url(asset), headers: authorization(@teacher_token), as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "The original video is no longer available; upload it again", response.parsed_body.dig("error", "message")
+  end
+
   test "authorized student receives playback and saves completion" do
     student, token = enrolled_student_with_access
     asset = ready_asset
@@ -57,6 +93,7 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     body = response.parsed_body.fetch("playback")
     assert_equal asset.id, body.fetch("video_asset_id")
     assert_includes body.fetch("qualities").keys, "720p"
+    assert_includes body.dig("qualities", "720p"), "/api/video_delivery/"
     assert_equal 0, body.fetch("last_position_seconds")
     assert_equal student.user.name, body.dig("watermark", "name")
 
@@ -84,6 +121,32 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     get api_video_delivery_url(video_asset_id: asset.id, token: "invalid.token", path: "720p/index.m3u8")
 
     assert_response :unauthorized
+  end
+
+  test "development delivery caches remote video files" do
+    asset = ready_asset
+    variant = asset.video_variants.find_by!(quality: "720p")
+    cache = Videos::Storage.delivery_cache
+    cache.delete(variant.file_key)
+    remote = Object.new
+    remote.define_singleton_method(:local?) { false }
+    remote.define_singleton_method(:read) { |_key| "#EXTM3U\n#EXTINF:6,\nsegment_00001.ts\n" }
+    token = Videos::PlaybackToken.issue(video_asset: asset, viewer: @teacher)
+    original_build = Videos::Storage.method(:build)
+    Videos::Storage.define_singleton_method(:build) { remote }
+
+    get api_video_delivery_url(
+      video_asset_id: asset.id,
+      token:,
+      path: "720p/index.m3u8"
+    )
+
+    assert_response :success
+    assert cache.exist?(variant.file_key)
+    assert_equal "#EXTM3U\n#EXTINF:6,\nsegment_00001.ts\n", cache.read(variant.file_key)
+  ensure
+    Videos::Storage.define_singleton_method(:build, original_build) if defined?(original_build)
+    cache&.delete(variant&.file_key) if defined?(cache)
   end
 
   private

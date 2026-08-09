@@ -17,21 +17,20 @@ module Api
     end
 
     def content
-      storage = Videos::Storage.build
-      return render json: { error: { code: "not_found", message: "Local upload is unavailable" } }, status: :not_found unless storage.local?
-
       asset = lecture.video_assets.find(params.require(:video_asset_id))
-      storage.put(asset.original_file_key, request.body)
+      Videos::Storage.staging.put(asset.original_file_key, request.body)
       head :no_content
     end
 
     def complete
       asset = lecture.video_assets.find(params.require(:video_asset_id))
-      storage = Videos::Storage.build
+      storage = Videos::Storage.staging
       raise ApplicationService::Error, "The uploaded video could not be found" unless storage.exist?(asset.original_file_key)
       raise ApplicationService::Error, "The uploaded video exceeds the 6 GB limit" if storage.size(asset.original_file_key) > MAX_FILE_SIZE
 
-      VideoProcessingJob.perform_later(asset.id)
+      return render json: { video_asset: serialize(asset) }, status: :accepted if asset.processing? || asset.ready?
+
+      Videos::ProcessingDispatcher.call(asset.id)
       render json: { video_asset: serialize(asset) }, status: :accepted
     end
 
@@ -51,22 +50,12 @@ module Api
     end
 
     def upload_payload(asset)
-      storage = Videos::Storage.build
-      if storage.local?
-        {
-          url: content_api_lecture_video_upload_url(lecture, video_asset_id: asset.id),
-          method: "PUT",
-          headers: { "Content-Type" => params[:content_type] },
-          requires_authentication: true
-        }
-      else
-        {
-          url: storage.presigned_put(asset.original_file_key, content_type: params[:content_type]),
-          method: "PUT",
-          headers: { "Content-Type" => params[:content_type] },
-          requires_authentication: false
-        }
-      end
+      {
+        url: content_api_lecture_video_upload_url(lecture, video_asset_id: asset.id),
+        method: "PUT",
+        headers: { "Content-Type" => params[:content_type] },
+        requires_authentication: true
+      }
     end
 
     def serialize(asset)

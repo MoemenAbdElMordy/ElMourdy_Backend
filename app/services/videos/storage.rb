@@ -8,6 +8,14 @@ module Videos
       ENV.fetch("VIDEO_STORAGE_SERVICE", Rails.env.production? ? "r2" : "local") == "r2" ? R2.new : Local.new
     end
 
+    def self.staging
+      Local.new(root: Rails.root.join("tmp/video_staging"))
+    end
+
+    def self.delivery_cache
+      Local.new(root: Rails.root.join("tmp/video_delivery_cache"))
+    end
+
     class Local
       def initialize(root: Rails.root.join("tmp/video_storage"))
         @root = root
@@ -42,8 +50,9 @@ module Videos
       private
 
       def clean_key(key)
-        value = key.to_s.delete_prefix("/")
-        raise ArgumentError, "Invalid storage key" if value.split("/").include?("..")
+        value = key.to_s.delete_prefix("/").tr("\\", "/")
+        valid = value.match?(/\A[a-zA-Z0-9._\/-]+\z/) && value.split("/").exclude?("..")
+        raise ArgumentError, "Invalid storage key" unless valid
 
         value
       end
@@ -82,6 +91,7 @@ module Videos
 
       def size(key) = @client.head_object(bucket: @bucket, key:).content_length
       def download(key, destination) = @client.get_object(bucket: @bucket, key:, response_target: destination.to_s)
+      def read(key) = @client.get_object(bucket: @bucket, key:).body.read
 
       def upload_file(key, path, content_type:)
         File.open(path, "rb") { |body| @client.put_object(bucket: @bucket, key:, body:, content_type:) }

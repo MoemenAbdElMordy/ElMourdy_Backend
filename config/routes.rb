@@ -38,7 +38,9 @@ Rails.application.routes.draw do
       end
       resource :video_playback, only: :show
     end
-    resources :video_assets, only: %i[show destroy]
+    resources :video_assets, only: %i[show destroy] do
+      post :retry_processing, on: :member
+    end
     resources :lecture_watch_events, only: :update
     get "video_delivery/:video_asset_id/:token/*path", to: "video_delivery#show", as: :video_delivery,
       constraints: { token: /[^\/]+/ }, format: false
@@ -49,6 +51,15 @@ Rails.application.routes.draw do
       post :redeem, on: :collection
     end
     resources :lesson_access_grants, only: %i[index create update]
+    resources :exams, only: %i[index show create update]
+    resources :exam_attempts, only: %i[index show] do
+      post :submit, on: :member
+    end
+    post "exams/:exam_id/attempts", to: "exam_attempts#create"
+    resources :announcements, only: %i[index create update destroy]
+    resources :support_requests, only: %i[index create show] do
+      post :review, on: :member
+    end
     get "webhooks/whatsapp", to: "whatsapp_webhooks#show"
     post "webhooks/whatsapp", to: "whatsapp_webhooks#create"
   end

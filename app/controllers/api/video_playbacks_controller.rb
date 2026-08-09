@@ -41,7 +41,7 @@ module Api
     end
 
     def playback_urls(asset, token)
-      base = ENV["MEDIA_DELIVERY_BASE_URL"].presence
+      base = ENV["MEDIA_DELIVERY_BASE_URL"].presence if Rails.env.production?
       asset.video_variants.ready.each_with_object({}) do |variant, result|
         path = variant.file_key.split("/hls/", 2).last
         result[variant.quality] = if base

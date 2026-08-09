@@ -10,8 +10,22 @@ module Api
     def destroy
       prefix = File.dirname(File.dirname(video_asset.original_file_key))
       Videos::Storage.build.delete_prefix(prefix)
+      Videos::Storage.staging.delete_prefix(prefix)
+      Videos::Storage.delivery_cache.delete_prefix(prefix)
       video_asset.destroy!
       head :no_content
+    end
+
+    def retry_processing
+      storage = Videos::Storage.staging
+      raise ApplicationService::Error, "The original video is no longer available; upload it again" unless storage.exist?(video_asset.original_file_key)
+      if video_asset.ready? && (Videos::Transcoder::QUALITIES.keys - Array(video_asset.available_qualities)).empty?
+        raise ApplicationService::Error, "A ready video does not need processing"
+      end
+
+      video_asset.update!(processing_status: :uploaded)
+      Videos::ProcessingDispatcher.call(video_asset.id)
+      render json: { video_asset: serialize(video_asset) }, status: :accepted
     end
 
     private

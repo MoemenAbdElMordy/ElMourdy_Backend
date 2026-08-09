@@ -11,11 +11,17 @@ module Api
       relative_path = "#{match[1]}/#{match[2]}"
       key = "#{payload[:prefix]}/#{relative_path}"
       storage = Videos::Storage.build
-      if storage.local?
-        path = storage.path_for(key)
-        return render_not_found unless path.file?
+      cache = Videos::Storage.delivery_cache
+      if Rails.env.local? && cache.exist?(key)
+        send_data cache.read(key), type: content_type(Pathname(key)), disposition: "inline"
+      elsif storage.local?
+        return render_not_found unless storage.exist?(key)
 
-        send_data storage.read(key), type: content_type(path), disposition: "inline"
+        send_data storage.read(key), type: content_type(Pathname(key)), disposition: "inline"
+      elsif Rails.env.local?
+        data = storage.read(key)
+        cache.put(key, StringIO.new(data))
+        send_data data, type: content_type(Pathname(key)), disposition: "inline"
       else
         redirect_to storage.presigned_get(key), allow_other_host: true
       end

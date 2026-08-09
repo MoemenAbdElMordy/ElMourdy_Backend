@@ -1,5 +1,6 @@
 ENV["RAILS_ENV"] ||= "test"
 ENV["SECURITY_PEPPER"] ||= "test-only-security-pepper"
+ENV["VIDEO_STORAGE_SERVICE"] = "local"
 require_relative "../config/environment"
 require "rails/test_help"
 require_relative "support/record_factory"
