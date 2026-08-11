@@ -2,9 +2,9 @@ class OtpVerification < ApplicationRecord
   include E164Phone
 
   enum :purpose, {
-    student_registration: 0, parent_registration: 1, parent_phone_change: 2
+    student_registration: 0, parent_registration: 1, parent_phone_change: 2, password_reset: 3
   }, validate: true
-  enum :status, { pending: 0, verified: 1, expired: 2, failed: 3 }, validate: true
+  enum :status, { pending: 0, verified: 1, expired: 2, failed: 3, consumed: 4 }, validate: true
 
   belongs_to :user, optional: true
   has_many :parent_phone_changes, dependent: :restrict_with_error

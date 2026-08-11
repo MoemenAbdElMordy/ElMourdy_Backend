@@ -69,15 +69,23 @@ module Api
     def linked_students
       return [] unless current_user.parent?
 
-      current_user.parent_profile.student_parent_links.active.includes(student_profile: :user).map do |link|
+      current_user.parent_profile.student_parent_links.active.includes(
+        student_profile: [ :user, { student_enrollments: %i[grade academic_year] } ]
+      ).map do |link|
         student = link.student_profile
+        enrollment = student.student_enrollments.active.max_by(&:enrolled_at)
         {
           id: student.id,
           name: student.user.name,
           phone: student.user.phone_e164,
           birth_date: student.birth_date,
           governorate: student.governorate,
-          status: student.user.status
+          school: student.school,
+          status: student.user.status,
+          grade: enrollment&.grade&.name,
+          grade_level: enrollment&.grade&.level,
+          academic_year: enrollment&.academic_year&.name,
+          last_active_at: student.user.user_sessions.maximum(:last_seen_at)
         }
       end
     end

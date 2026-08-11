@@ -9,6 +9,17 @@ module Api
     def create
       return head :unauthorized unless valid_signature?
 
+      inbound_messages.each do |message|
+        sender = message["from"].to_s
+        next if sender.blank?
+
+        WhatsappVerifications::Confirm.call(
+          phone: "+#{sender}",
+          message: message.dig("text", "body"),
+          message_id: message["id"]
+        )
+      end
+
       head :no_content
     end
 
@@ -28,6 +39,14 @@ module Api
 
       provided.bytesize == expected.bytesize &&
         ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+    end
+
+    def inbound_messages
+      Array(params[:entry]).flat_map do |entry|
+        Array(entry[:changes]).flat_map do |change|
+          Array(change.dig(:value, :messages)).select { |message| message[:type] == "text" }
+        end
+      end
     end
   end
 end

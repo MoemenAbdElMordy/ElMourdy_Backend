@@ -32,6 +32,21 @@ class Api::AnnouncementsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ global.id, matching.id ].sort, response.parsed_body.fetch("announcements").pluck("id").sort
   end
 
+  test "teacher targets an announcement to one student" do
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    student = create_student
+
+    post "/api/announcements", params: {
+      announcement: {
+        title: "Private note", body: "Visible to one student", status: "published", user_ids: [ student.user_id ]
+      }
+    }, headers: auth(token), as: :json
+
+    assert_response :created
+    assert_equal [ student.user_id ], response.parsed_body.dig("announcement", "user_ids")
+  end
+
   private
 
   def auth(token)

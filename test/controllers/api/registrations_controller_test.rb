@@ -20,12 +20,25 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     registration = response.parsed_body
-    assert registration["development_code"].match?(/\A\d{6}\z/)
+    assert_equal "whatsapp_inbound", registration["verification_method"]
+    assert registration["whatsapp_url"].start_with?("https://wa.me/201069229786?text=")
+    assert registration["client_token"].present?
 
-    post "/api/registrations/#{registration["registration_id"]}/verify", params: {
+    post "/api/registrations/#{registration["registration_id"]}/status", params: {
       registration: {
         verification_id: registration["verification_id"],
-        code: registration["development_code"],
+        client_token: registration["client_token"]
+      }
+    }, as: :json
+    assert_response :success
+    assert_equal "pending", response.parsed_body["status"]
+
+    confirm_whatsapp_registration(registration)
+
+    post "/api/registrations/#{registration["registration_id"]}/complete", params: {
+      registration: {
+        verification_id: registration["verification_id"],
+        client_token: registration["client_token"],
         device_fingerprint: "student-device"
       }
     }, as: :json
@@ -55,11 +68,12 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     registration = response.parsed_body
+    confirm_whatsapp_registration(registration)
 
-    post "/api/registrations/#{registration["registration_id"]}/verify", params: {
+    post "/api/registrations/#{registration["registration_id"]}/complete", params: {
       registration: {
         verification_id: registration["verification_id"],
-        code: registration["development_code"]
+        client_token: registration["client_token"]
       }
     }, as: :json
 
@@ -101,5 +115,17 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_entity
     assert_not User.exists?(phone_e164: "+201112345678")
+  end
+
+  private
+
+  def confirm_whatsapp_registration(registration)
+    uri = URI(registration.fetch("whatsapp_url"))
+    message = URI.decode_www_form(uri.query).to_h.fetch("text")
+    WhatsappVerifications::Confirm.call(
+      phone: registration.fetch("phone"),
+      message:,
+      message_id: "test-message-#{registration.fetch('verification_id')}"
+    )
   end
 end

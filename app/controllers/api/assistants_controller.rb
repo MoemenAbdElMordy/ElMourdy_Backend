@@ -23,7 +23,7 @@ module Api
         user.update!(assistant_update_params)
         user.assistant_profile.update!(title: assistant_params[:title]) if assistant_params.key?(:title)
         sync_permissions(user.assistant_profile) if assistant_params.key?(:permissions)
-        revoke_sessions(user) unless user.active?
+        revoke_sessions(user) if !user.active? || assistant_params[:password].present?
       end
       render json: { assistant: serialize_assistant(user) }
     end
@@ -57,7 +57,12 @@ module Api
     end
 
     def assistant_update_params
-      assistant_params.slice(:name, :email, :status)
+      attributes = assistant_params.slice(:name, :email, :status)
+      if assistant_params[:password].present?
+        attributes[:password] = assistant_params[:password]
+        attributes[:password_confirmation] = assistant_params[:password_confirmation]
+      end
+      attributes
     end
 
     def sync_permissions(profile)

@@ -16,6 +16,13 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
   test "returns only students linked to the authenticated parent" do
     parent_phone = unique_phone
     linked_student = create_student(parent_phone:)
+    linked_student.update!(school: "Test School")
+    year, grade = create_academic_setup
+    StudentEnrollment.create!(
+      student_profile: linked_student, academic_year: year, grade:,
+      status: :active, enrolled_at: Time.current
+    )
+    session_token_for(linked_student.user)
     create_student
     parent = create_parent(phone: parent_phone)
     ParentLinks::Sync.call(parent_profile: parent)
@@ -25,6 +32,9 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal [ linked_student.id ], response.parsed_body["linked_students"].pluck("id")
+    assert_equal grade.name, response.parsed_body.dig("linked_students", 0, "grade")
+    assert_equal "Test School", response.parsed_body.dig("linked_students", 0, "school")
+    assert response.parsed_body.dig("linked_students", 0, "last_active_at").present?
   end
 
   test "changes password and ends other sessions" do

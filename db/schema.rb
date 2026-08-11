@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_08_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_000100) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -369,8 +369,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_000100) do
     t.index ["user_id"], name: "index_otp_verifications_on_user_id"
     t.check_constraint "`attempts_count` >= 0", name: "chk_otp_attempts"
     t.check_constraint "`expires_at` > `created_at`", name: "chk_otp_expiration"
-    t.check_constraint "`purpose` between 0 and 2", name: "chk_otp_verifications_purpose"
-    t.check_constraint "`status` between 0 and 3", name: "chk_otp_verifications_status"
+    t.check_constraint "`purpose` between 0 and 3", name: "chk_otp_verifications_purpose"
+    t.check_constraint "`status` between 0 and 4", name: "chk_otp_verifications_status"
   end
 
   create_table "parent_phone_changes", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|

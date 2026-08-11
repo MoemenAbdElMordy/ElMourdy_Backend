@@ -1,4 +1,5 @@
 class ApplicationController < ActionController::API
+  after_action :audit_authenticated_mutation!
   rescue_from ActionController::ParameterMissing, with: :render_bad_request
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
   rescue_from ActiveRecord::RecordInvalid, with: :render_unprocessable_entity
@@ -70,6 +71,27 @@ class ApplicationController < ActionController::API
       role: user.role,
       permissions: assistant_permissions(user)
     }
+  end
+
+  def audit!(action:, target:, metadata: {})
+    AuditLog.create!(
+      actor_user: current_user,
+      action:,
+      target:,
+      metadata: metadata.compact,
+      ip_address: request.remote_ip
+    )
+    @audit_recorded = true
+  end
+
+  def audit_authenticated_mutation!
+    return if @audit_recorded || current_user.nil? || request.get? || request.head? || response.status >= 400
+
+    audit!(
+      action: "#{controller_path.tr('/', '.')}.#{action_name}",
+      target: current_user,
+      metadata: { resource_id: params[:id] || params[:exam_id] || params[:lecture_id] }
+    )
   end
 
   def assistant_permissions(user)

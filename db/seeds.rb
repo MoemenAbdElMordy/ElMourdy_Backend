@@ -17,18 +17,16 @@ AcademicYear.find_or_create_by!(name: "2026/2027") do |year|
   year.status = :active
 end
 
-teacher_password = if Rails.env.production?
-  ENV.fetch("SEED_TEACHER_PASSWORD")
-else
-  ENV.fetch("SEED_TEACHER_PASSWORD", "ChangeMe123!ForDevelopment")
-end
-
-User.find_or_create_by!(phone_e164: "+201000000000") do |user|
-  user.name = "Platform Teacher"
-  user.phone_display = "01000000000"
-  user.password = teacher_password
-  user.password_confirmation = teacher_password
-  user.role = :teacher
-  user.status = :active
-  user.phone_verified_at = Time.current
-end
+teacher_password = ENV.fetch("SEED_TEACHER_PASSWORD")
+teacher = User.teacher.order(:id).first_or_initialize
+teacher.assign_attributes(
+  name: "Platform Teacher",
+  phone_e164: "+201200000003",
+  phone_display: "01200000003",
+  password: teacher_password,
+  password_confirmation: teacher_password,
+  role: :teacher,
+  status: :active,
+  phone_verified_at: Time.current
+)
+teacher.save!

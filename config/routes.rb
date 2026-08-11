@@ -10,6 +10,11 @@ Rails.application.routes.draw do
     post "registrations/parent", to: "registrations#create_parent"
     post "registrations/:id/verify", to: "registrations#verify"
     post "registrations/:id/resend", to: "registrations#resend"
+    post "registrations/:id/status", to: "registrations#status"
+    post "registrations/:id/complete", to: "registrations#complete"
+    resources :password_resets, only: %i[create update] do
+      post :status, on: :member
+    end
     resource :profile, only: %i[show update] do
       patch :password
     end
@@ -17,9 +22,23 @@ Rails.application.routes.draw do
       post :removal_request, on: :member
     end
     resources :academic_years, only: %i[index create update]
+    post "academic_years/:id/copy_content", to: "academic_years#copy_content"
+    post "academic_years/:id/rollover_students", to: "academic_years#rollover_students"
     resources :grades, only: :index
     resources :students, only: %i[index show update]
+    resources :parents, only: %i[index show update] do
+      patch :password, on: :member
+    end
+    patch "students/:id/enrollment", to: "students#update_enrollment"
+    patch "students/:id/password", to: "students#reset_password"
+    patch "students/:id/parent_phone", to: "students#update_parent_phone"
+    delete "students/:id/devices/:device_id", to: "students#destroy_device"
+    get "students/:id/preview", to: "student_previews#show"
     resources :assistants, only: %i[index create update destroy]
+    resource :dashboard, only: :show
+    resource :management_report, only: :show
+    resources :audit_logs, only: :index
+    resources :free_lectures, only: :index
     get "curriculum", to: "curriculum#show"
     resources :branches, only: %i[create update destroy] do
       patch :reorder, on: :collection

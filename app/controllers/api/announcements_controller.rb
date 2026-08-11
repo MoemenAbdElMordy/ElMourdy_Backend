@@ -22,24 +22,30 @@ module Api
 
     def create
       announcement = Announcement.transaction do
-        record = Announcement.create!(announcement_params.except(:grade_ids).merge(created_by_user: current_user))
-        replace_targets(record, announcement_params[:grade_ids])
+        record = Announcement.create!(announcement_params.except(:grade_ids, :user_ids).merge(created_by_user: current_user))
+        replace_targets(record, announcement_params[:grade_ids], announcement_params[:user_ids])
         record
       end
+      audit!(action: "announcement.created", target: announcement)
       render json: { announcement: serialize(announcement) }, status: :created
     end
 
     def update
       announcement = Announcement.find(params[:id])
       Announcement.transaction do
-        announcement.update!(announcement_params.except(:grade_ids))
-        replace_targets(announcement, announcement_params[:grade_ids]) if announcement_params.key?(:grade_ids)
+        announcement.update!(announcement_params.except(:grade_ids, :user_ids))
+        if announcement_params.key?(:grade_ids) || announcement_params.key?(:user_ids)
+          replace_targets(announcement, announcement_params[:grade_ids], announcement_params[:user_ids])
+        end
       end
+      audit!(action: "announcement.updated", target: announcement)
       render json: { announcement: serialize(announcement.reload) }
     end
 
     def destroy
-      Announcement.find(params[:id]).destroy!
+      announcement = Announcement.find(params[:id])
+      audit!(action: "announcement.deleted", target: announcement)
+      announcement.destroy!
       head :no_content
     end
 
@@ -57,13 +63,17 @@ module Api
     end
 
     def announcement_params
-      params.require(:announcement).permit(:title, :body, :status, :publish_at, grade_ids: [])
+      params.require(:announcement).permit(:title, :body, :status, :publish_at, grade_ids: [], user_ids: [])
     end
 
-    def replace_targets(announcement, grade_ids)
+    def replace_targets(announcement, grade_ids, user_ids)
       announcement.announcement_targets.destroy_all
       Array(grade_ids).reject(&:blank?).uniq.each do |grade_id|
         announcement.announcement_targets.create!(target_type: :grade, grade_id:)
+      end
+      Array(user_ids).reject(&:blank?).uniq.each do |user_id|
+        user = User.student.find(user_id)
+        announcement.announcement_targets.create!(target_type: :user, user:)
       end
     end
 
@@ -71,7 +81,8 @@ module Api
       {
         id: record.id, title: record.title, body: record.body, status: record.status,
         publish_at: record.publish_at, created_at: record.created_at,
-        grade_ids: record.announcement_targets.select(&:target_grade?).map(&:grade_id)
+        grade_ids: record.announcement_targets.select(&:target_grade?).map(&:grade_id),
+        user_ids: record.announcement_targets.select(&:target_user?).map(&:user_id)
       }
     end
   end

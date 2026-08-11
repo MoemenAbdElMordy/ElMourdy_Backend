@@ -1,31 +1,30 @@
 module Registrations
   class Create < ApplicationService
-    Result = Data.define(:user, :verification, :development_code)
+    Result = Data.define(:user, :verification, :whatsapp_url, :client_token)
 
-    def self.call(role:, attributes:, messenger: OtpVerifications::Messenger.build)
-      new(role:, attributes:, messenger:).call
+    def self.call(role:, attributes:)
+      new(role:, attributes:).call
     end
 
-    def initialize(role:, attributes:, messenger:)
+    def initialize(role:, attributes:)
       @role = role.to_sym
       @attributes = attributes
-      @messenger = messenger
     end
 
     def call
       validate_role!
       user = create_user_and_profile
-      result = OtpVerifications::Request.call(
+      result = WhatsappVerifications::Request.call(
         phone: user.phone_e164,
         purpose: purpose,
-        user:,
-        messenger: @messenger
+        user:
       )
 
       Result.new(
         user:,
         verification: result.verification,
-        development_code: @messenger.respond_to?(:last_code) ? @messenger.last_code : nil
+        whatsapp_url: result.whatsapp_url,
+        client_token: result.client_token
       )
     end
 

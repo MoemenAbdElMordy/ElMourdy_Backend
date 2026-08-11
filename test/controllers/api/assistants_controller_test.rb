@@ -34,6 +34,24 @@ class Api::AssistantsControllerTest < ActionDispatch::IntegrationTest
     assert assistant.reload.archived?
   end
 
+  test "teacher resets an assistant password and revokes active sessions" do
+    assistant = create_user(role: :assistant)
+    AssistantProfile.create!(user: assistant)
+    active_session = start_test_session(assistant)
+
+    patch "/api/assistants/#{assistant.id}", params: {
+      assistant: {
+        name: assistant.name,
+        password: "UpdatedPassword123!",
+        password_confirmation: "UpdatedPassword123!"
+      }
+    }, headers: authorization_header(@token), as: :json
+
+    assert_response :success
+    assert assistant.reload.authenticate("UpdatedPassword123!")
+    assert active_session.session.reload.revoked?
+  end
+
   private
 
   def authorization_header(token)
