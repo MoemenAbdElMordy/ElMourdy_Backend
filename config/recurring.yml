@@ -2,3 +2,4 @@ production:
   prune_finished_queue_jobs:
     class: OperationsMaintenanceJob
     schedule: every day at 3am Africa/Cairo
+    priority: 0

@@ -1,0 +1,10 @@
+[Unit]
+Description=ElMourdy production database backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+ExecStart=/srv/elmourdy/deploy/backup-database.sh
