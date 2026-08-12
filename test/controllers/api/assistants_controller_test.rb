@@ -27,11 +27,13 @@ class Api::AssistantsControllerTest < ActionDispatch::IntegrationTest
   test "teacher archives an assistant" do
     assistant = create_user(role: :assistant)
     AssistantProfile.create!(user: assistant)
+    active_session = start_test_session(assistant)
 
     delete "/api/assistants/#{assistant.id}", headers: authorization_header(@token)
 
     assert_response :no_content
     assert assistant.reload.archived?
+    assert active_session.session.reload.revoked?
   end
 
   test "teacher resets an assistant password and revokes active sessions" do

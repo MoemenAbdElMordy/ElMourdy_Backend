@@ -115,6 +115,31 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "assistant with video permission can preview playback" do
+    assistant = create_user(role: :assistant)
+    profile = AssistantProfile.create!(user: assistant)
+    profile.assistant_permissions.create!(permission_key: "upload_videos", enabled: true)
+    token = Sessions::Start.call(user: assistant).raw_token
+    asset = ready_asset
+
+    get api_lecture_video_playback_url(@lecture), headers: authorization(token)
+
+    assert_response :success
+    assert_equal asset.id, response.parsed_body.dig("playback", "video_asset_id")
+    assert_nil response.parsed_body.dig("playback", "watermark")
+  end
+
+  test "assistant without content or video permission cannot preview playback" do
+    assistant = create_user(role: :assistant)
+    AssistantProfile.create!(user: assistant)
+    token = Sessions::Start.call(user: assistant).raw_token
+    ready_asset
+
+    get api_lecture_video_playback_url(@lecture), headers: authorization(token)
+
+    assert_response :forbidden
+  end
+
   test "delivery rejects an expired or invalid token" do
     asset = ready_asset
 

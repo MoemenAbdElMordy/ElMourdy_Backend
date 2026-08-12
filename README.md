@@ -110,7 +110,8 @@ Production may use a single `DATABASE_URL` instead.
 ### Application Security
 
 ```env
-FRONTEND_ORIGINS=https://example.com
+FRONTEND_ORIGINS=https://mourdy.com,https://www.mourdy.com
+APPLICATION_HOST=api.mourdy.com
 SECURITY_PEPPER=replace-with-a-long-random-production-secret
 VIDEO_PLAYBACK_SECRET=replace-with-a-long-random-playback-secret
 ```
@@ -118,12 +119,12 @@ VIDEO_PLAYBACK_SECRET=replace-with-a-long-random-playback-secret
 ### Media Storage
 
 ```env
-VIDEO_STORAGE_SERVICE=local
+VIDEO_STORAGE_SERVICE=r2
 R2_BUCKET=elmourdy-videos
 R2_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=replace-with-an-r2-access-key
 R2_SECRET_ACCESS_KEY=replace-with-an-r2-secret-key
-MEDIA_DELIVERY_BASE_URL=https://video.example.com
+MEDIA_DELIVERY_BASE_URL=https://api.mourdy.com/api/video_delivery
 ```
 
 ### WhatsApp Verification
@@ -144,7 +145,7 @@ Passwords are verified with `has_secure_password`. A successful login returns a 
 
 Phone numbers are normalized to E.164 before lookup. Suspended or archived accounts cannot reuse an old session. Generic authentication errors avoid leaking whether a phone number exists.
 
-Every protected controller checks the authenticated role, account status, and—where applicable—the assistant permission required for that operation.
+Every protected controller checks the authenticated role, account status, and, where applicable, the assistant permission required for that operation.
 
 ## Video Pipeline
 
@@ -206,8 +207,6 @@ bin/rails db:migrate:status
 bin/rails db:seed
 bin/rails db:rollback
 ```
-
-Demo records used for local end-to-end testing can be managed with the tasks in `lib/tasks/demo_data.rake`. They are development data and must not be treated as production fixtures.
 
 ## Testing and Security Checks
 
