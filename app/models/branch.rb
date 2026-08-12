@@ -1,4 +1,5 @@
 class Branch < ApplicationRecord
+  include CatalogCacheable
   include Publishable
 
   belongs_to :academic_year

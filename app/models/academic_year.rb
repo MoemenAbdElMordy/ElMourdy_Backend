@@ -1,4 +1,5 @@
 class AcademicYear < ApplicationRecord
+  include CatalogCacheable
   enum :status, { draft: 0, active: 1, archived: 2 }, validate: true
 
   belongs_to :copied_from_year, class_name: "AcademicYear", optional: true

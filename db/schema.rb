@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_11_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_000300) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -296,13 +296,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_000100) do
   end
 
   create_table "lectures", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.string "attachment_name"
+    t.string "attachment_url", limit: 2048
     t.datetime "created_at", null: false
+    t.text "description"
     t.integer "duration_seconds"
     t.boolean "is_free", default: false, null: false
     t.bigint "lesson_id", null: false
     t.integer "position", null: false
     t.datetime "publish_at"
     t.integer "status", default: 0, null: false
+    t.string "thumbnail_key"
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.index ["lesson_id", "position"], name: "index_lectures_on_lesson_id_and_position", unique: true
@@ -397,6 +401,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_000100) do
     t.string "verified_parent_phone_e164", limit: 20, null: false
     t.index ["user_id"], name: "index_parent_profiles_on_user_id", unique: true
     t.index ["verified_parent_phone_e164"], name: "index_parent_profiles_on_verified_parent_phone_e164"
+  end
+
+  create_table "solid_cache_entries", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.integer "byte_size", null: false
+    t.datetime "created_at", null: false
+    t.binary "key", limit: 1024, null: false
+    t.bigint "key_hash", null: false
+    t.binary "value", size: :long, null: false
+    t.index ["byte_size"], name: "index_solid_cache_entries_on_byte_size"
+    t.index ["key_hash", "byte_size"], name: "index_solid_cache_entries_on_key_hash_and_byte_size"
+    t.index ["key_hash"], name: "index_solid_cache_entries_on_key_hash", unique: true
   end
 
   create_table "solid_queue_blocked_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|

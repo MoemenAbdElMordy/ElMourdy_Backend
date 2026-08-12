@@ -19,6 +19,10 @@ This service owns authentication, authorization, academic data, examinations, pr
 - Management dashboards, reports, student previews, and assistant audit logs
 - Direct object-storage uploads and multi-quality HLS video processing
 - Signed private playback delivery with watch-progress persistence
+- Managed lecture thumbnails, descriptions, attachments, scheduling, and free access
+- Consistent API pagination for high-volume administrative collections
+- Versioned catalog caching backed by Solid Cache
+- Durable video processing and maintenance jobs backed by Solid Queue
 - WhatsApp Cloud API integration points and verified webhook handling
 
 Payment processing is intentionally outside the current product scope.
@@ -161,6 +165,22 @@ bin/jobs
 ```
 
 Development uses local storage under `tmp/video_storage` by default. Production uses private R2 objects and short-lived playback tokens.
+
+Lecture thumbnails are stored privately and streamed through an authenticated endpoint with private browser caching, ETags, and last-modified validation.
+
+## Pagination and Caching
+
+Large collection endpoints return a consistent `pagination` object containing the current page, page size, total count, total pages, and adjacent page numbers. The default page size is 20 and the enforced maximum is 100.
+
+Stable public catalog reads use Solid Cache with versioned keys. Model changes automatically advance the catalog version, preventing stale academic content without broad cache scans. Authentication, permissions, dashboards, and student progress remain uncached because they are personal or security-sensitive.
+
+Production uses MySQL-backed Solid Cache by default, so a separate cache service is not required for the initial deployment.
+
+## Background Jobs
+
+Production uses Solid Queue for durable background processing. Video jobs run on a dedicated single-threaded queue to avoid competing FFmpeg processes for server resources, while ordinary jobs use the default worker pool.
+
+A recurring maintenance job removes old completed queue records. Puma may supervise Solid Queue in the initial single-server deployment through `SOLID_QUEUE_IN_PUMA=true`; larger deployments should run workers as separately supervised processes.
 
 ## API Areas
 

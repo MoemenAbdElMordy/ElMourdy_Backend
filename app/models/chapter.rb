@@ -1,4 +1,5 @@
 class Chapter < ApplicationRecord
+  include CatalogCacheable
   include Publishable
 
   belongs_to :branch

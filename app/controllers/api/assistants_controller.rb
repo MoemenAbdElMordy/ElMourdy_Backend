@@ -4,7 +4,12 @@ module Api
     before_action :require_teacher!
 
     def index
-      render json: { assistants: assistant_users.map { |user| serialize_assistant(user) }, permission_keys: AssistantPermission::KEYS }
+      users, pagination = paginate(assistant_users)
+      render json: {
+        assistants: users.map { |user| serialize_assistant(user) },
+        permission_keys: AssistantPermission::KEYS,
+        pagination:
+      }
     end
 
     def create

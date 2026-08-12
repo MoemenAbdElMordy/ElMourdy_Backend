@@ -1,4 +1,5 @@
 class Lecture < ApplicationRecord
+  include CatalogCacheable
   include Publishable
 
   belongs_to :lesson

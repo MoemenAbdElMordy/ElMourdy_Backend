@@ -7,7 +7,7 @@ module Api
       logs = AuditLog.joins(:actor_user).merge(User.assistant).includes(:actor_user).order(created_at: :desc)
       logs = logs.where(action: params[:event]) if params[:event].present?
       logs = logs.where(actor_user_id: params[:actor_user_id]) if params[:actor_user_id].present?
-      logs = logs.limit(200)
+      logs, pagination = paginate(logs)
 
       render json: {
         audit_logs: logs.map do |log|
@@ -18,7 +18,8 @@ module Api
             assistant: { id: log.actor_user.id, name: log.actor_user.name },
             created_at: log.created_at
           }
-        end
+        end,
+        pagination:
       }
     end
 

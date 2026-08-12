@@ -1,4 +1,5 @@
 class VideoAsset < ApplicationRecord
+  include CatalogCacheable
   enum :processing_status, { uploaded: 0, processing: 1, ready: 2, failed: 3 }, validate: true
 
   belongs_to :lecture

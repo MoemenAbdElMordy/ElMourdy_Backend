@@ -1,7 +1,11 @@
 module Api
   class FreeLecturesController < ApplicationController
     def index
-      render json: { lectures: playable_free_lectures.filter_map { |lecture| serialize(lecture) } }
+      version = CacheVersions.current("catalog")
+      lectures = Rails.cache.fetch("catalog/#{version}/free-lectures", expires_in: 5.minutes) do
+        playable_free_lectures.filter_map { |lecture| serialize(lecture) }
+      end
+      render json: { lectures: }
     end
 
     private

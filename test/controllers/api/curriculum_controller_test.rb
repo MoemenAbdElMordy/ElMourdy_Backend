@@ -10,7 +10,11 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     branch_two = create_resource("branches", { academic_year_id: year.id, grade_id: grade.id, title: "Literature", status: "published" }, token)
     chapter = create_resource("chapters", { branch_id: branch_one.fetch("id"), title: "Foundations", status: "published" }, token)
     lesson = create_resource("lessons", { chapter_id: chapter.fetch("id"), title: "Introduction", status: "published", is_free: true }, token)
-    lecture = create_resource("lectures", { lesson_id: lesson.fetch("id"), title: "First Lecture", status: "published", duration_seconds: 600 }, token)
+    lecture = create_resource("lectures", {
+      lesson_id: lesson.fetch("id"), title: "First Lecture", description: "Lecture overview",
+      attachment_name: "Lecture notes", attachment_url: "https://example.com/notes.pdf",
+      status: "published", duration_seconds: 600, is_free: true
+    }, token)
 
     patch "/api/branches/reorder", params: {
       academic_year_id: year.id, grade_id: grade.id, ordered_ids: [ branch_two.fetch("id"), branch_one.fetch("id") ]
@@ -27,6 +31,10 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal 2, response.parsed_body.dig("curriculum", "branches").size
     assert_equal "Foundations", response.parsed_body.dig("curriculum", "branches", 1, "chapters", 0, "title")
+    payload = response.parsed_body.dig("curriculum", "branches", 1, "chapters", 0, "lessons", 0, "lectures", 0)
+    assert_equal "Lecture overview", payload.fetch("description")
+    assert_equal "Lecture notes", payload.fetch("attachment_name")
+    assert_equal true, payload.fetch("is_free")
   end
 
   test "student sees only currently published curriculum for the active enrollment" do
@@ -37,6 +45,7 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     student = create_student
     StudentEnrollment.create!(student_profile: student, academic_year: year, grade: grade, status: :active, enrolled_at: Time.current)
     device = student.device_registrations.create!(device_fingerprint_digest: Security::DigestValue.call(SecureRandom.hex(12)), status: :active)
+    student.lecture_watch_events.create!(lecture:, device_registration: device, started_at: Time.current, last_position_seconds: 42)
     token = Sessions::Start.call(user: student.user, device_registration: device).raw_token
 
     get "/api/curriculum", headers: authorization_header(token)
@@ -46,6 +55,7 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ chapter.id ], response.parsed_body.dig("curriculum", "branches", 0, "chapters").pluck("id")
     assert_equal [ lecture.id ], response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures").pluck("id")
     assert_equal false, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "has_access")
+    assert_equal 42, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures", 0, "progress", "last_position_seconds")
 
     LessonAccessGrant.create!(student_profile: student, lesson:, academic_year: year, source: :manual, expires_on: year.ends_on, status: :active)
     get "/api/curriculum", headers: authorization_header(token)

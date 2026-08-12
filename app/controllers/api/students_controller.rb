@@ -14,7 +14,8 @@ module Api
       users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query", query: "%#{params[:query]}%") if params[:query].present?
       users = users.joins(student_profile: :student_enrollments).where(student_enrollments: { grade_id: params[:grade_id] }).distinct if params[:grade_id].present?
 
-      render json: { students: users.order(created_at: :desc).map { |user| serialize_student(user) } }
+      users, pagination = paginate(users.order(created_at: :desc))
+      render json: { students: users.map { |user| serialize_student(user) }, pagination: }
     end
 
     def show

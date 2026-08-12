@@ -1,4 +1,5 @@
 class ApplicationController < ActionController::API
+  include Paginatable
   after_action :audit_authenticated_mutation!
   rescue_from ActionController::ParameterMissing, with: :render_bad_request
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found

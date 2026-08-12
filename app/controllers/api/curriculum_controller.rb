@@ -18,15 +18,24 @@ module Api
     def managed_curriculum
       year = params[:academic_year_id].present? ? AcademicYear.find(params[:academic_year_id]) : AcademicYear.active.first
       grade = params[:grade_id].present? ? Grade.find(params[:grade_id]) : Grade.enabled.first
-      serialize_tree(year:, grade:, visible_only: false)
+      return empty_tree unless year && grade
+
+      version = CacheVersions.current("catalog")
+      Rails.cache.fetch("catalog/#{version}/managed-curriculum/#{year.id}/#{grade.id}", expires_in: 10.minutes) do
+        serialize_tree(year:, grade:, visible_only: false)
+      end
     end
 
     def student_curriculum
-      enrollment = current_user.student_profile.student_enrollments.active.includes(:academic_year, :grade).order(enrolled_at: :desc).first
+      profile = current_user.student_profile
+      enrollment = profile.student_enrollments.active.includes(:academic_year, :grade).order(enrolled_at: :desc).first
       return empty_tree unless enrollment
 
-      @accessible_lesson_ids = current_user.student_profile.lesson_access_grants.currently_active
+      @accessible_lesson_ids = profile.lesson_access_grants.currently_active
         .where(academic_year: enrollment.academic_year).pluck(:lesson_id)
+      @watch_events_by_lecture = profile.lecture_watch_events.order(updated_at: :desc).each_with_object({}) do |event, events|
+        events[event.lecture_id] ||= event
+      end
       serialize_tree(year: enrollment.academic_year, grade: enrollment.grade, visible_only: true)
     end
 
@@ -66,9 +75,19 @@ module Api
 
     def serialize_lecture(lecture)
       asset = lecture.video_assets.order(created_at: :desc).first
+      watch_event = @watch_events_by_lecture&.fetch(lecture.id, nil)
+      duration = lecture.duration_seconds.to_i.nonzero? || (asset&.duration_seconds).to_i
       content_payload(lecture).merge(
         is_free: lecture.is_free,
-        duration_seconds: lecture.duration_seconds,
+        description: lecture.description,
+        attachment_name: lecture.attachment_name,
+        attachment_url: lecture.attachment_url,
+        has_thumbnail: lecture.thumbnail_key.present?,
+        duration_seconds: duration,
+        progress: watch_event && {
+          last_position_seconds: watch_event.last_position_seconds,
+          completed: watch_event.completed_at.present?
+        },
         video_asset: asset&.as_json(only: %i[id processing_status duration_seconds available_qualities])
       )
     end

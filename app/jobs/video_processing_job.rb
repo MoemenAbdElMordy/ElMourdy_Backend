@@ -3,6 +3,7 @@ require "aws-sdk-s3"
 
 class VideoProcessingJob < ApplicationJob
   queue_as :video_processing
+  limits_concurrency to: 1, key: ->(video_asset_id) { video_asset_id }, duration: 6.hours
   retry_on Aws::S3::Errors::ServiceError, wait: :polynomially_longer, attempts: 5
 
   def perform(video_asset_id)

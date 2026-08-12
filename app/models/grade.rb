@@ -1,4 +1,5 @@
 class Grade < ApplicationRecord
+  include CatalogCacheable
   has_many :student_enrollments, dependent: :restrict_with_error
   has_many :branches, dependent: :restrict_with_error
   has_many :exams, dependent: :restrict_with_error

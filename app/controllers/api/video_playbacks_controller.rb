@@ -13,7 +13,9 @@ module Api
       event = current_user.student? ? start_watch_event(lecture) : nil
       render json: {
         playback: {
-          lecture: lecture.as_json(only: %i[id title duration_seconds]),
+          lecture: lecture.as_json(only: %i[id title description attachment_name attachment_url duration_seconds]).merge(
+            has_thumbnail: lecture.thumbnail_key.present?
+          ),
           video_asset_id: asset.id,
           qualities: playback_urls(asset, token),
           watch_event_id: event&.id,

@@ -9,7 +9,8 @@ module Api
       if params[:query].present?
         users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query", query: "%#{params[:query]}%")
       end
-      render json: { parents: users.order(created_at: :desc).map { |user| serialize_parent(user) } }
+      users, pagination = paginate(users.order(created_at: :desc))
+      render json: { parents: users.map { |user| serialize_parent(user) }, pagination: }
     end
 
     def show

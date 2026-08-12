@@ -18,6 +18,19 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ matching.user_id ], response.parsed_body["students"].pluck("id")
   end
 
+  test "paginates students and returns navigation metadata" do
+    3.times { |index| enrolled_student(name: "Paged Student #{index}") }
+
+    get "/api/students", params: { page: 2, per_page: 2 }, headers: authorization_header(@token)
+
+    assert_response :success
+    assert_equal 1, response.parsed_body.fetch("students").length
+    assert_equal 3, response.parsed_body.dig("pagination", "total_count")
+    assert_equal 2, response.parsed_body.dig("pagination", "total_pages")
+    assert_equal 1, response.parsed_body.dig("pagination", "previous_page")
+    assert_nil response.parsed_body.dig("pagination", "next_page")
+  end
+
   test "returns student details and suspends the account" do
     student = enrolled_student(name: "Managed Student")
 

@@ -17,7 +17,8 @@ module Api
       end
       exams = exams.where(grade_id: params[:grade_id]) if params[:grade_id].present?
       exams = exams.where(lesson_id: params[:lesson_id]) if params[:lesson_id].present?
-      render json: { exams: exams.includes(:exam_questions, :exam_attempts).order(created_at: :desc).map { |exam| serialize_exam(exam) } }
+      exams, pagination = paginate(exams.includes(:exam_questions, :exam_attempts).order(created_at: :desc))
+      render json: { exams: exams.map { |exam| serialize_exam(exam) }, pagination: }
     end
 
     def show

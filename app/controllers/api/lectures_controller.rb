@@ -26,8 +26,17 @@ module Api
     private
 
     def lecture = @lecture ||= Lecture.find(params[:id])
-    def lecture_params = params.require(:lecture).permit(:lesson_id, :title, :position, :status, :publish_at, :is_free, :duration_seconds)
+    def lecture_params
+      params.require(:lecture).permit(
+        :lesson_id, :title, :description, :attachment_name, :attachment_url,
+        :position, :status, :publish_at, :is_free, :duration_seconds
+      )
+    end
     def next_position = Lecture.where(lesson_id: lecture_params[:lesson_id]).maximum(:position).to_i + 1
-    def serialize(record) = record.as_json(only: %i[id lesson_id title position status publish_at is_free duration_seconds])
+    def serialize(record)
+      record.as_json(
+        only: %i[id lesson_id title description attachment_name attachment_url position status publish_at is_free duration_seconds]
+      ).merge(has_thumbnail: record.thumbnail_key.present?)
+    end
   end
 end

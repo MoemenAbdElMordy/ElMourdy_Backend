@@ -1,7 +1,11 @@
 module Api
   class GradesController < ApplicationController
     def index
-      render json: { grades: Grade.enabled.map { |grade| serialize_grade(grade) } }
+      version = CacheVersions.current("catalog")
+      grades = Rails.cache.fetch("catalog/#{version}/grades", expires_in: 1.hour) do
+        Grade.enabled.map { |grade| serialize_grade(grade) }
+      end
+      render json: { grades: }
     end
 
     private

@@ -31,6 +31,9 @@ module Api
         .where.not(completed_at: nil).distinct.count(:lecture_id)
       completed_ids = profile.lecture_watch_events.where(lecture_id: lecture_scope.select(:id))
         .where.not(completed_at: nil).distinct.pluck(:lecture_id)
+      continue_event = profile.lecture_watch_events.where(lecture_id: lecture_scope.select(:id), completed_at: nil)
+        .where("last_position_seconds > 0").includes(lecture: { lesson: { chapter: :branch } })
+        .order(updated_at: :desc).first
       exams = Exam.published.where(academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id)
       attempt_counts = profile.exam_attempts.where(exam_id: exams.select(:id)).group(:exam_id).count
       approved_extras = profile.support_requests.approved.extra_exam_attempt.pluck(:payload).each_with_object(Hash.new(0)) do |payload, counts|
@@ -64,6 +67,7 @@ module Api
               completed_lectures: (lecture_ids & completed_ids).length
             }
           end,
+        continue_watching: continue_watching_payload(continue_event),
         announcements: visible_announcements(enrollment.grade_id, current_user.id)
       }
     end
@@ -75,7 +79,25 @@ module Api
           total_lectures: 0, completed_lectures: 0, highest_score: nil,
           subjects_count: 0, attempts_remaining: 0, active_access_grants: 0
         },
-        subjects: [], announcements: []
+        subjects: [], continue_watching: nil, announcements: []
+      }
+    end
+
+    def continue_watching_payload(event)
+      return unless event
+
+      lecture = event.lecture
+      duration = lecture.duration_seconds.to_i.nonzero? || lecture.video_assets.ready.order(created_at: :desc).pick(:duration_seconds).to_i
+      {
+        lecture_id: lecture.id,
+        title: lecture.title,
+        lesson_title: lecture.lesson.title,
+        chapter_title: lecture.lesson.chapter.title,
+        subject_title: lecture.lesson.chapter.branch.title,
+        last_position_seconds: event.last_position_seconds,
+        duration_seconds: duration,
+        progress_percent: duration.positive? ? [ (event.last_position_seconds.to_f / duration * 100).round, 100 ].min : 0,
+        has_thumbnail: lecture.thumbnail_key.present?
       }
     end
 
@@ -103,6 +125,9 @@ module Api
           ready_videos: VideoAsset.ready.count,
           processing_videos: VideoAsset.where(processing_status: %i[uploaded processing]).count,
           failed_videos: VideoAsset.failed.count,
+          queued_jobs: SolidQueue::Job.where(finished_at: nil).count,
+          failed_jobs: SolidQueue::FailedExecution.count,
+          queue_workers: SolidQueue::Process.where("last_heartbeat_at >= ?", 2.minutes.ago).count,
           draft_content: Branch.draft.count + Chapter.draft.count + Lesson.draft.count + Lecture.draft.count
         },
         top_students:,

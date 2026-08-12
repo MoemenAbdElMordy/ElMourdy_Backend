@@ -8,7 +8,8 @@ module Api
 
       attempts = attempts.where(exam_id: params[:exam_id]) if params[:exam_id].present?
       attempts = attempts.where(student_profile_id: params[:student_profile_id]) if params[:student_profile_id].present?
-      render json: { attempts: attempts.includes(:exam, student_profile: :user).recent.map { |attempt| serialize_summary(attempt) } }
+      attempts, pagination = paginate(attempts.includes(:exam, student_profile: :user).recent)
+      render json: { attempts: attempts.map { |attempt| serialize_summary(attempt) }, pagination: }
     end
 
     def show

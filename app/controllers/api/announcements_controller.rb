@@ -17,7 +17,9 @@ module Api
 
         Announcement.all
       end
-      render json: { announcements: announcements.includes(:announcement_targets).order(publish_at: :desc, created_at: :desc).map { |record| serialize(record) } }
+      announcements = announcements.includes(:announcement_targets).order(publish_at: :desc, created_at: :desc)
+      announcements, pagination = paginate(announcements)
+      render json: { announcements: announcements.map { |record| serialize(record) }, pagination: }
     end
 
     def create

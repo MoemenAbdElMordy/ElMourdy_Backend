@@ -8,7 +8,8 @@ module Api
     def index
       batches = ActivationCodeBatch.includes(:lesson, :academic_year, :grade, activation_codes: :redeemed_by_student_profile)
         .where(deleted_at: nil).order(created_at: :desc)
-      render json: { batches: batches.map { |batch| serialize_batch(batch, include_codes: true) } }
+      batches, pagination = paginate(batches)
+      render json: { batches: batches.map { |batch| serialize_batch(batch, include_codes: true) }, pagination: }
     end
 
     def create

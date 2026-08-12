@@ -11,10 +11,10 @@ module Api
       else
         current_user.support_requests
       end
-      render json: {
-        support_requests: requests.includes(:requester_user, :student_profile,
-          support_request_actions: :reviewer_user).order(created_at: :desc).map { |record| serialize(record) }
-      }
+      requests = requests.includes(:requester_user, :student_profile,
+        support_request_actions: :reviewer_user).order(created_at: :desc)
+      requests, pagination = paginate(requests)
+      render json: { support_requests: requests.map { |record| serialize(record) }, pagination: }
     end
 
     def show

@@ -51,6 +51,7 @@ Rails.application.routes.draw do
     end
     resources :lectures, only: %i[create update destroy] do
       patch :reorder, on: :collection
+      resource :thumbnail, only: %i[show update destroy], controller: :lecture_thumbnails
       resource :video_upload, only: %i[create] do
         put :content
         post :complete
