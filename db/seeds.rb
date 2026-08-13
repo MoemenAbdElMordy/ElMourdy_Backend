@@ -18,11 +18,12 @@ AcademicYear.find_or_create_by!(name: "2026/2027") do |year|
 end
 
 teacher_password = ENV.fetch("SEED_TEACHER_PASSWORD")
+teacher_phone = ENV.fetch("SEED_TEACHER_PHONE")
 teacher = User.teacher.order(:id).first_or_initialize
 teacher.assign_attributes(
   name: "Platform Teacher",
-  phone_e164: "+201200000003",
-  phone_display: "01200000003",
+  phone_e164: PhoneNumbers::Normalize.call(teacher_phone),
+  phone_display: teacher_phone,
   password: teacher_password,
   password_confirmation: teacher_password,
   role: :teacher,

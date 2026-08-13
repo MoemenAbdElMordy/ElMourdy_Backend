@@ -245,6 +245,6 @@ Operational references are available in:
 
 The React application is maintained in [ElMourdy](https://github.com/MoemenAbdElMordy/ElMourdy).
 
-## License
+## Source Availability
 
-Private and proprietary software. All rights reserved.
+This repository is public for portfolio and technical-review purposes. No license is granted for copying, redistribution, or commercial reuse. All rights reserved.
