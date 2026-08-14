@@ -47,8 +47,7 @@ module Api
 
     def resend
       user = pending_user
-      result = WhatsappVerifications::Request.call(
-        phone: user.phone_e164,
+      result = EmailVerifications::Request.call(
         purpose: user.student? ? :student_registration : :parent_registration,
         user:
       )
@@ -66,7 +65,7 @@ module Api
     end
 
     def parent_params
-      params.require(:registration).permit(:name, :phone, :password, :password_confirmation)
+      params.require(:registration).permit(:name, :phone, :email, :password, :password_confirmation)
     end
 
     def verify_params
@@ -104,11 +103,18 @@ module Api
         verification_id: result.verification.id,
         phone: user.phone_e164,
         expires_at: result.verification.expires_at,
-        resend_after_seconds: WhatsappVerifications::Request::RESEND_DELAY.to_i,
-        verification_method: "whatsapp_inbound",
-        whatsapp_url: result.whatsapp_url,
+        resend_after_seconds: EmailVerifications::Request::RESEND_DELAY.to_i,
+        verification_method: "email",
+        email_hint: masked_email(user.email),
         client_token: result.client_token
       }
+    end
+
+    def masked_email(email)
+      local, domain = email.to_s.split("@", 2)
+      return email if local.blank? || domain.blank?
+
+      "#{local.first}#{'*' * [ local.length - 1, 3 ].min}@#{domain}"
     end
 
     def registration_verification(user)

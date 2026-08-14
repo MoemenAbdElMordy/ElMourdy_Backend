@@ -20,8 +20,8 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     registration = response.parsed_body
-    assert_equal "whatsapp_inbound", registration["verification_method"]
-    assert registration["whatsapp_url"].start_with?("https://wa.me/201069229786?text=")
+    assert_equal "email", registration["verification_method"]
+    assert_equal "n***@example.test", registration["email_hint"]
     assert registration["client_token"].present?
 
     post "/api/registrations/#{registration["registration_id"]}/status", params: {
@@ -33,12 +33,10 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "pending", response.parsed_body["status"]
 
-    confirm_whatsapp_registration(registration)
-
-    post "/api/registrations/#{registration["registration_id"]}/complete", params: {
+    post "/api/registrations/#{registration["registration_id"]}/verify", params: {
       registration: {
         verification_id: registration["verification_id"],
-        client_token: registration["client_token"],
+        code: delivered_code,
         device_fingerprint: "student-device"
       }
     }, as: :json
@@ -61,6 +59,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
       registration: {
         name: "New Parent",
         phone: "01112345678",
+        email: "new.parent@example.test",
         password: "ValidPassword123!",
         password_confirmation: "ValidPassword123!"
       }
@@ -68,12 +67,10 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     registration = response.parsed_body
-    confirm_whatsapp_registration(registration)
-
-    post "/api/registrations/#{registration["registration_id"]}/complete", params: {
+    post "/api/registrations/#{registration["registration_id"]}/verify", params: {
       registration: {
         verification_id: registration["verification_id"],
-        client_token: registration["client_token"]
+        code: delivered_code
       }
     }, as: :json
 
@@ -92,6 +89,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
         birth_date: "2008-04-16",
         governorate: "Cairo",
         grade_level: grade.level,
+        email: "same.phone@example.test",
         password: "ValidPassword123!",
         password_confirmation: "ValidPassword123!"
       }
@@ -108,6 +106,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
       registration: {
         name: "Unknown Parent",
         phone: "01112345678",
+        email: "unknown.parent@example.test",
         password: "ValidPassword123!",
         password_confirmation: "ValidPassword123!"
       }
@@ -119,13 +118,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  def confirm_whatsapp_registration(registration)
-    uri = URI(registration.fetch("whatsapp_url"))
-    message = URI.decode_www_form(uri.query).to_h.fetch("text")
-    WhatsappVerifications::Confirm.call(
-      phone: registration.fetch("phone"),
-      message:,
-      message_id: "test-message-#{registration.fetch('verification_id')}"
-    )
+  def delivered_code
+    ActionMailer::Base.deliveries.last.body.encoded.match(/\b\d{6}\b/).to_s
   end
 end

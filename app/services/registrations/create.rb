@@ -1,6 +1,6 @@
 module Registrations
   class Create < ApplicationService
-    Result = Data.define(:user, :verification, :whatsapp_url, :client_token)
+    Result = Data.define(:user, :verification, :client_token)
 
     def self.call(role:, attributes:)
       new(role:, attributes:).call
@@ -14,8 +14,7 @@ module Registrations
     def call
       validate_role!
       user = create_user_and_profile
-      result = WhatsappVerifications::Request.call(
-        phone: user.phone_e164,
+      result = EmailVerifications::Request.call(
         purpose: purpose,
         user:
       )
@@ -23,7 +22,6 @@ module Registrations
       Result.new(
         user:,
         verification: result.verification,
-        whatsapp_url: result.whatsapp_url,
         client_token: result.client_token
       )
     end
@@ -45,7 +43,7 @@ module Registrations
           name: @attributes.fetch(:name),
           phone_e164: phone,
           phone_display: @attributes.fetch(:phone),
-          email: @attributes[:email],
+          email: @attributes.fetch(:email),
           password: @attributes.fetch(:password),
           password_confirmation: @attributes.fetch(:password_confirmation)
         )
