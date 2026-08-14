@@ -3,7 +3,7 @@ module Api
     before_action :authenticate_user!, only: %i[show destroy]
 
     def create
-      user = User.available_for_login.find_by(phone_e164: normalized_phone)
+      user = User.active.find_by(phone_e164: normalized_phone)
       return render_invalid_credentials unless user&.authenticate(session_params[:password])
 
       device = register_student_device(user)

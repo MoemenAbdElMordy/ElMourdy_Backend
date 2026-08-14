@@ -21,9 +21,22 @@ class ApplicationController < ActionController::API
 
     return render_unauthorized unless @current_session && @current_user&.active?
 
+    return render_account_unverified if account_verification_required?
+
     now = Time.current
     @current_session.update_column(:last_seen_at, now)
     @current_session.device_registration&.update_column(:last_seen_at, now)
+  end
+
+  def account_verification_required?
+    current_user.phone_verified_at.blank? &&
+      !%w[api/sessions api/account_verifications].include?(controller_path)
+  end
+
+  def render_account_unverified
+    render json: {
+      error: { code: "account_unverified", message: "Account verification is required" }
+    }, status: :forbidden
   end
 
   def render_unauthorized
@@ -70,6 +83,7 @@ class ApplicationController < ActionController::API
       name: user.name,
       phone: user.phone_e164,
       role: user.role,
+      verified: user.phone_verified_at.present?,
       permissions: assistant_permissions(user)
     }
   end
