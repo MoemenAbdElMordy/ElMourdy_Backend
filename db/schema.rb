@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_11_000300) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_000100) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -276,6 +276,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_000300) do
     t.index ["active", "level"], name: "index_grades_on_active_and_level"
     t.index ["level"], name: "index_grades_on_level", unique: true
     t.check_constraint "`level` between 1 and 3", name: "chk_grade_level"
+  end
+
+  create_table "lecture_placements", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "lecture_id", null: false
+    t.bigint "lesson_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["lecture_id", "lesson_id"], name: "index_lecture_placements_on_lecture_id_and_lesson_id", unique: true
+    t.index ["lesson_id"], name: "index_lecture_placements_on_lesson_id"
   end
 
   create_table "lecture_watch_events", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -701,6 +710,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_000300) do
   add_foreign_key "exams", "grades"
   add_foreign_key "exams", "lessons"
   add_foreign_key "exams", "users", column: "created_by_user_id", on_delete: :nullify
+  add_foreign_key "lecture_placements", "lectures"
+  add_foreign_key "lecture_placements", "lessons"
   add_foreign_key "lecture_watch_events", "device_registrations"
   add_foreign_key "lecture_watch_events", "lectures"
   add_foreign_key "lecture_watch_events", "student_profiles"

@@ -111,7 +111,24 @@ module Api
         starts_on: year.starts_on,
         ends_on: year.ends_on,
         status: year.status,
-        students_count: year.student_enrollments.active.count
+        students_count: year.student_enrollments.active.count,
+        grades: Grade.enabled.order(:level).map { |grade| serialize_grade_summary(year, grade) }
+      }
+    end
+
+    def serialize_grade_summary(year, grade)
+      branches = year.branches.where(grade:)
+      lessons = Lesson.joins(chapter: :branch).where(branches: { id: branches.select(:id) })
+      lecture_ids = Lecture.where(lesson_id: lessons.select(:id)).select(:id)
+      placed_lecture_ids = LecturePlacement.where(lesson_id: lessons.select(:id)).select(:lecture_id)
+      {
+        id: grade.id,
+        name: grade.name,
+        level: grade.level,
+        students_count: year.student_enrollments.active.where(grade:).count,
+        branches_count: branches.count,
+        lessons_count: lessons.count,
+        lectures_count: Lecture.where(id: lecture_ids).or(Lecture.where(id: placed_lecture_ids)).count
       }
     end
   end

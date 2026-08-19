@@ -31,6 +31,22 @@ class Api::AcademicYearsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "year list includes a summary for each secondary grade" do
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    year, grade, _branch, _chapter, lesson = create_curriculum
+    lesson.lectures.create!(title: "Summary Lecture", position: 1)
+
+    get "/api/academic_years", headers: authorization_header(token)
+
+    assert_response :success
+    year_payload = response.parsed_body.fetch("academic_years").find { |item| item.fetch("id") == year.id }
+    grade_payload = year_payload.fetch("grades").find { |item| item.fetch("id") == grade.id }
+    assert_equal 1, grade_payload.fetch("branches_count")
+    assert_equal 1, grade_payload.fetch("lessons_count")
+    assert_equal 1, grade_payload.fetch("lectures_count")
+  end
+
   test "copies curriculum structure and rolls students into the next grade" do
     teacher = create_user(role: :teacher)
     token = Sessions::Start.call(user: teacher).raw_token

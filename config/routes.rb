@@ -1,4 +1,5 @@
 Rails.application.routes.draw do
+  root "api_root#show"
   get "up" => "rails/health#show", as: :rails_health_check
 
   namespace :api do
@@ -41,6 +42,7 @@ Rails.application.routes.draw do
     resources :audit_logs, only: :index
     resources :free_lectures, only: :index
     get "curriculum", to: "curriculum#show"
+    resources :curriculum_locations, only: :index
     resources :branches, only: %i[create update destroy] do
       patch :reorder, on: :collection
     end

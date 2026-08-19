@@ -35,6 +35,35 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Lecture overview", payload.fetch("description")
     assert_equal "Lecture notes", payload.fetch("attachment_name")
     assert_equal true, payload.fetch("is_free")
+    assert_equal true, payload.fetch("has_access")
+  end
+
+  test "teacher places one lecture in another grade without duplicating its video" do
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    year, first_grade, _branch, _chapter, first_lesson = create_curriculum
+    second_grade = Grade.create!(name: "Second Secondary", level: 2, active: true)
+    second_branch = Branch.create!(academic_year: year, grade: second_grade, title: "Grammar", position: 1, status: :published)
+    second_chapter = second_branch.chapters.create!(title: "Part Two", position: 1, status: :published)
+    second_lesson = second_chapter.lessons.create!(title: "Shared Lesson", position: 1, status: :published)
+    lecture = first_lesson.lectures.create!(title: "Shared Lecture", position: 1, status: :published)
+    asset = lecture.video_assets.create!(original_file_key: "videos/shared.mp4", processing_status: :ready)
+
+    patch "/api/lectures/#{lecture.id}", params: {
+      lecture: { additional_lesson_ids: [ second_lesson.id ] }
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :success
+    assert_equal [ second_lesson.id ], response.parsed_body.dig("lecture", "additional_lesson_ids")
+    assert_equal 1, lecture.reload.video_assets.count
+    assert_equal asset.id, lecture.video_assets.first.id
+
+    get "/api/curriculum", params: { academic_year_id: year.id, grade_id: second_grade.id }, headers: authorization_header(token)
+    assert_response :success
+    shared_payload = response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures", 0)
+    assert_equal lecture.id, shared_payload.fetch("id")
+    assert_equal asset.id, shared_payload.dig("video_asset", "id")
+    assert_equal first_grade.id, first_lesson.chapter.branch.grade_id
   end
 
   test "student sees only currently published curriculum for the active enrollment" do
@@ -55,11 +84,28 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ chapter.id ], response.parsed_body.dig("curriculum", "branches", 0, "chapters").pluck("id")
     assert_equal [ lecture.id ], response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures").pluck("id")
     assert_equal false, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "has_access")
+    assert_equal false, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures", 0, "has_access")
     assert_equal 42, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures", 0, "progress", "last_position_seconds")
 
     LessonAccessGrant.create!(student_profile: student, lesson:, academic_year: year, source: :manual, expires_on: year.ends_on, status: :active)
     get "/api/curriculum", headers: authorization_header(token)
     assert_equal true, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "has_access")
+  end
+
+  test "a free lecture remains accessible inside a paid lesson" do
+    year, grade, _branch, _chapter, lesson = create_curriculum
+    lecture = lesson.lectures.create!(title: "Free Lecture", position: 1, status: :published, is_free: true)
+    student = create_student
+    StudentEnrollment.create!(student_profile: student, academic_year: year, grade:, status: :active, enrolled_at: Time.current)
+    device = student.device_registrations.create!(device_fingerprint_digest: Security::DigestValue.call(SecureRandom.hex(12)), status: :active)
+    token = Sessions::Start.call(user: student.user, device_registration: device).raw_token
+
+    get "/api/curriculum", headers: authorization_header(token)
+
+    assert_response :success
+    assert_equal false, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "has_access")
+    assert_equal true, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures", 0, "has_access")
+    assert Videos::Access.allowed?(user: student.user, lecture:)
   end
 
   test "assistant requires content permission" do
@@ -70,6 +116,21 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     get "/api/curriculum", headers: authorization_header(token)
 
     assert_response :forbidden
+  end
+
+  test "teacher loads curriculum locations across academic years and grades" do
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    year, grade, branch, chapter, lesson = create_curriculum
+
+    get "/api/curriculum_locations", headers: authorization_header(token)
+
+    assert_response :success
+    location = response.parsed_body.fetch("locations").find { |item| item.fetch("lesson_id") == lesson.id }
+    assert_equal year.name, location.fetch("academic_year")
+    assert_equal grade.level, location.fetch("grade_level")
+    assert_equal branch.title, location.fetch("branch")
+    assert_equal chapter.title, location.fetch("chapter")
   end
 
   test "deletion returns a conflict while dependent content exists" do

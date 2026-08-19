@@ -64,24 +64,27 @@ module Api
     end
 
     def serialize_lesson(lesson, visible_only:)
-      lectures = lesson.lectures.ordered
+      lectures = lesson.curriculum_lectures
       lectures = lectures.visible if visible_only
+      lesson_has_access = !visible_only || lesson.is_free || @accessible_lesson_ids.include?(lesson.id)
       content_payload(lesson).merge(
         is_free: lesson.is_free,
-        has_access: !visible_only || lesson.is_free || @accessible_lesson_ids.include?(lesson.id),
-        lectures: lectures.map { |lecture| serialize_lecture(lecture) }
+        has_access: lesson_has_access,
+        lectures: lectures.map { |lecture| serialize_lecture(lecture, lesson_has_access:) }
       )
     end
 
-    def serialize_lecture(lecture)
+    def serialize_lecture(lecture, lesson_has_access: true)
       asset = lecture.video_assets.order(created_at: :desc).first
       watch_event = @watch_events_by_lecture&.fetch(lecture.id, nil)
       duration = lecture.duration_seconds.to_i.nonzero? || (asset&.duration_seconds).to_i
       content_payload(lecture).merge(
         is_free: lecture.is_free,
+        has_access: lesson_has_access || lecture.is_free,
         description: lecture.description,
         attachment_name: lecture.attachment_name,
         attachment_url: lecture.attachment_url,
+        additional_lesson_ids: lecture.additional_lesson_ids,
         has_thumbnail: lecture.thumbnail_key.present?,
         duration_seconds: duration,
         progress: watch_event && {

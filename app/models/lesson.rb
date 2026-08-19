@@ -5,6 +5,8 @@ class Lesson < ApplicationRecord
   belongs_to :chapter
   belongs_to :required_exam, class_name: "Exam", optional: true
   has_many :lectures, dependent: :restrict_with_error
+  has_many :lecture_placements, dependent: :restrict_with_error
+  has_many :placed_lectures, through: :lecture_placements, source: :lecture
   has_many :exams, dependent: :restrict_with_error
   has_many :activation_code_batches, dependent: :restrict_with_error
   has_many :lesson_access_grants, dependent: :restrict_with_error
@@ -16,6 +18,10 @@ class Lesson < ApplicationRecord
     only_integer: true, in: 0..100
   }, allow_nil: true
   validate :exam_requirement_is_complete
+
+  def curriculum_lectures
+    Lecture.where(id: lectures.select(:id)).or(Lecture.where(id: placed_lectures.select(:id))).ordered
+  end
 
   private
 
