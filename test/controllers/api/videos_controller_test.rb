@@ -169,6 +169,9 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert cache.exist?(variant.file_key)
     assert_equal "#EXTM3U\n#EXTINF:6,\nsegment_00001.ts\n", cache.read(variant.file_key)
+    assert_includes response.body, "/api/video_delivery/#{asset.id}/"
+    assert_includes response.body, "/720p/segment_00001.ts"
+    refute_match(/^segment_00001\.ts$/, response.body)
   ensure
     Videos::Storage.define_singleton_method(:build, original_build) if defined?(original_build)
     cache&.delete(variant&.file_key) if defined?(cache)

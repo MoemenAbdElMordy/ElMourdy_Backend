@@ -12,7 +12,13 @@ module Api
       key = "#{payload[:prefix]}/#{relative_path}"
       storage = Videos::Storage.build
       cache = Videos::Storage.delivery_cache
-      if Rails.env.local? && cache.exist?(key)
+      if match[2] == "index.m3u8"
+        manifest = read_manifest(storage:, cache:, key:)
+        return render_not_found unless manifest
+
+        send_data rewrite_manifest(manifest, asset:, quality: match[1]),
+          type: content_type(Pathname(key)), disposition: "inline"
+      elsif Rails.env.local? && cache.exist?(key)
         send_data cache.read(key), type: content_type(Pathname(key)), disposition: "inline"
       elsif storage.local?
         return render_not_found unless storage.exist?(key)
@@ -28,6 +34,24 @@ module Api
     end
 
     private
+
+    def read_manifest(storage:, cache:, key:)
+      return cache.read(key) if Rails.env.local? && cache.exist?(key)
+      return unless !storage.local? || storage.exist?(key)
+
+      manifest = storage.read(key)
+      cache.put(key, StringIO.new(manifest)) if Rails.env.local? && !storage.local?
+      manifest
+    end
+
+    def rewrite_manifest(manifest, asset:, quality:)
+      manifest.each_line.map do |line|
+        filename = line.strip
+        next line unless filename.match?(/\Asegment_\d{5}\.ts\z/)
+
+        "#{api_video_delivery_url(video_asset_id: asset.id, token: params[:token], path: "#{quality}/#{filename}")}\n"
+      end.join
+    end
 
     def content_type(path)
       path.extname == ".m3u8" ? "application/vnd.apple.mpegurl" : "video/mp2t"
