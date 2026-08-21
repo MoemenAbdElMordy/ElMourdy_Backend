@@ -20,6 +20,7 @@ module Api
           qualities: playback_urls(asset, token),
           watch_event_id: event&.id,
           last_position_seconds: event&.last_position_seconds.to_i,
+          watched_seconds: verified_watched_seconds(lecture),
           watermark: watermark
         }
       }
@@ -32,7 +33,9 @@ module Api
         lecture:,
         device_registration: current_session.device_registration,
         started_at: Time.current,
+        last_heartbeat_at: Time.current,
         last_position_seconds: previous_position(lecture),
+        completed_at: previous_completion(lecture),
         ip_address: request.remote_ip,
         user_agent: request.user_agent
       )
@@ -40,6 +43,16 @@ module Api
 
     def previous_position(lecture)
       current_user.student_profile.lecture_watch_events.where(lecture:).order(created_at: :desc).pick(:last_position_seconds).to_i
+    end
+
+    def previous_completion(lecture)
+      current_user.student_profile.lecture_watch_events.where(lecture:).where.not(completed_at: nil).minimum(:completed_at)
+    end
+
+    def verified_watched_seconds(lecture)
+      return 0 unless current_user.student?
+
+      current_user.student_profile.lecture_watch_events.where(lecture:).sum(:watched_seconds)
     end
 
     def playback_urls(asset, token)
@@ -57,7 +70,11 @@ module Api
     def watermark
       return unless current_user.student?
 
-      { name: current_user.name, phone: current_user.phone_e164.sub(/\d{4}\z/, "****") }
+      {
+        name: current_user.name,
+        phone: current_user.phone_e164.sub(/\d{4}\z/, "****"),
+        viewer_id: current_user.id
+      }
     end
   end
 end

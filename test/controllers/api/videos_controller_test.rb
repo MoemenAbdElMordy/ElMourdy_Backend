@@ -83,7 +83,7 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_equal "The original video is no longer available; upload it again", response.parsed_body.dig("error", "message")
   end
 
-  test "authorized student receives playback and saves completion" do
+  test "authorized student progress requires verified watch time and ignores seeking" do
     student, token = enrolled_student_with_access
     asset = ready_asset
 
@@ -95,12 +95,25 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_includes body.fetch("qualities").keys, "720p"
     assert_includes body.dig("qualities", "720p"), "/api/video_delivery/"
     assert_equal 0, body.fetch("last_position_seconds")
+    assert_equal 0, body.fetch("watched_seconds")
     assert_equal student.user.name, body.dig("watermark", "name")
 
     patch api_lecture_watch_event_url(body.fetch("watch_event_id")),
-      params: { position_seconds: 95 }, headers: authorization(token), as: :json
+      params: { position_seconds: 95, watched_seconds_delta: 95 }, headers: authorization(token), as: :json
     assert_response :success
+    assert_nil response.parsed_body.dig("watch_event", "completed_at")
+    assert_equal 0, response.parsed_body.dig("watch_event", "verified_watched_seconds")
+
+    heartbeat_base = Time.current
+    7.times do |index|
+      travel_to heartbeat_base + ((index + 1) * 15).seconds do
+        patch api_lecture_watch_event_url(body.fetch("watch_event_id")),
+          params: { position_seconds: 95, watched_seconds_delta: 15 }, headers: authorization(token), as: :json
+      end
+    end
+
     assert response.parsed_body.dig("watch_event", "completed_at").present?
+    assert_operator response.parsed_body.dig("watch_event", "verified_watched_seconds"), :>=, 90
   end
 
   test "student without lesson access cannot play video" do

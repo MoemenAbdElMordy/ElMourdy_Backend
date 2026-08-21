@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_19_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -292,16 +292,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_000100) do
     t.datetime "created_at", null: false
     t.bigint "device_registration_id"
     t.string "ip_address", limit: 45
+    t.datetime "last_heartbeat_at"
     t.integer "last_position_seconds", default: 0, null: false
     t.bigint "lecture_id", null: false
     t.datetime "started_at", null: false
     t.bigint "student_profile_id", null: false
     t.datetime "updated_at", null: false
     t.text "user_agent"
+    t.integer "watched_seconds", default: 0, null: false
     t.index ["device_registration_id"], name: "index_lecture_watch_events_on_device_registration_id"
     t.index ["lecture_id", "started_at"], name: "index_lecture_watch_events_on_lecture_id_and_started_at"
     t.index ["student_profile_id", "lecture_id", "started_at"], name: "idx_student_lecture_watch"
     t.check_constraint "`last_position_seconds` >= 0", name: "chk_watch_position"
+    t.check_constraint "`watched_seconds` >= 0", name: "chk_watch_seconds"
   end
 
   create_table "lectures", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|

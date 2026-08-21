@@ -36,6 +36,7 @@ module Api
       @watch_events_by_lecture = profile.lecture_watch_events.order(updated_at: :desc).each_with_object({}) do |event, events|
         events[event.lecture_id] ||= event
       end
+      @watched_seconds_by_lecture = profile.lecture_watch_events.group(:lecture_id).sum(:watched_seconds)
       serialize_tree(year: enrollment.academic_year, grade: enrollment.grade, visible_only: true)
     end
 
@@ -89,6 +90,7 @@ module Api
         duration_seconds: duration,
         progress: watch_event && {
           last_position_seconds: watch_event.last_position_seconds,
+          watched_seconds: @watched_seconds_by_lecture.fetch(lecture.id, 0),
           completed: watch_event.completed_at.present?
         },
         video_asset: asset&.as_json(only: %i[id processing_status duration_seconds available_qualities])

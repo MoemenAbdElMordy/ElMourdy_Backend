@@ -14,7 +14,8 @@ class Api::DashboardsControllerTest < ActionDispatch::IntegrationTest
       lecture:, device_registration: device, started_at: 1.hour.ago, completed_at: Time.current
     )
     student.lecture_watch_events.create!(
-      lecture: resume_lecture, device_registration: device, started_at: 10.minutes.ago, last_position_seconds: 150
+      lecture: resume_lecture, device_registration: device, started_at: 10.minutes.ago,
+      last_position_seconds: 150, watched_seconds: 150
     )
     token = Sessions::Start.call(user: student.user, device_registration: device).raw_token
 

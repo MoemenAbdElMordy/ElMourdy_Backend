@@ -88,6 +88,7 @@ module Api
 
       lecture = event.lecture
       duration = lecture.duration_seconds.to_i.nonzero? || lecture.video_assets.ready.order(created_at: :desc).pick(:duration_seconds).to_i
+      watched_seconds = event.student_profile.lecture_watch_events.where(lecture:).sum(:watched_seconds)
       {
         lecture_id: lecture.id,
         title: lecture.title,
@@ -96,7 +97,7 @@ module Api
         subject_title: lecture.lesson.chapter.branch.title,
         last_position_seconds: event.last_position_seconds,
         duration_seconds: duration,
-        progress_percent: duration.positive? ? [ (event.last_position_seconds.to_f / duration * 100).round, 100 ].min : 0,
+        progress_percent: duration.positive? ? [ (watched_seconds.to_f / duration * 100).round, 100 ].min : 0,
         has_thumbnail: lecture.thumbnail_key.present?
       }
     end
