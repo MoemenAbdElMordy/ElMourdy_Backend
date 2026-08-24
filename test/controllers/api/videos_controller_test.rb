@@ -97,15 +97,47 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_nil @lecture.reload.selected_video_asset_id
   end
 
-  test "teacher cannot delete a video shared with another lecture" do
+  test "teacher permanently deletes a shared video and detaches every lecture" do
     asset = ready_asset
     other_lecture = Lecture.create!(lesson: @lesson, title: "Shared Lecture", position: 2, status: :published)
+    @lecture.update!(selected_video_asset: asset)
     other_lecture.update!(video_source_type: :uploaded, selected_video_asset: asset)
 
     delete api_video_asset_url(asset), headers: authorization(@teacher_token)
 
-    assert_response :unprocessable_entity
-    assert VideoAsset.exists?(asset.id)
+    assert_response :no_content
+    assert_not VideoAsset.exists?(asset.id)
+    assert_nil @lecture.reload.selected_video_asset_id
+    assert_nil other_lecture.reload.selected_video_asset_id
+  end
+
+  test "teacher deletes a lecture with its watch history and unshared stored videos" do
+    student = create_student
+    asset = ready_asset
+    prefix = File.dirname(File.dirname(asset.original_file_key))
+    @lecture.update!(selected_video_asset: asset)
+    LectureWatchEvent.create!(student_profile: student, lecture: @lecture, started_at: Time.current)
+
+    delete api_lecture_url(@lecture), headers: authorization(@teacher_token)
+
+    assert_response :no_content
+    assert_not Lecture.exists?(@lecture.id)
+    assert_not VideoAsset.exists?(asset.id)
+    assert_not LectureWatchEvent.where(lecture_id: @lecture.id).exists?
+    assert_not Videos::Storage.build.exist?("#{prefix}/hls/720p/index.m3u8")
+  end
+
+  test "deleting a lecture preserves a video reused by another lecture" do
+    asset = ready_asset
+    other_lecture = Lecture.create!(lesson: @lesson, title: "Shared Lecture", position: 2, status: :published)
+    @lecture.update!(selected_video_asset: asset)
+    other_lecture.update!(video_source_type: :uploaded, selected_video_asset: asset)
+
+    delete api_lecture_url(@lecture), headers: authorization(@teacher_token)
+
+    assert_response :no_content
+    assert_not Lecture.exists?(@lecture.id)
+    assert_equal other_lecture.id, asset.reload.lecture_id
     assert_equal asset.id, other_lecture.reload.selected_video_asset_id
   end
 

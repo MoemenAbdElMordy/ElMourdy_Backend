@@ -21,7 +21,7 @@ module Api
     end
 
     def destroy
-      lecture.destroy!
+      Curriculum::DestroyLecture.call(lecture)
       head :no_content
     end
 
