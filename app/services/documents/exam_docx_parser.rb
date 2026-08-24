@@ -5,9 +5,14 @@ require "zip"
 module Documents
   class ExamDocxParser
     MAX_SIZE = 15.megabytes
-    NAMESPACES = { "w" => "http://schemas.openxmlformats.org/wordprocessingml/2006/main" }.freeze
-    QUESTION_PATTERN = /\A\s*(?:\u0633(?:\u0624\u0627\u0644)?\s*)?[0-9\u0660-\u0669]+\s*[\.\-:\u060C\)\u0640]\s*(.+)\z/
-    CHOICE_PATTERN = /\A\s*([\u0623\u0625\u0627ABCDEabcde\u0628\u062C\u062F\u0647\u0640])\s*[\.\-:\u060C\)]\s*(.+)\z/
+    NAMESPACES = {
+      "w" => "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+      "mc" => "http://schemas.openxmlformats.org/markup-compatibility/2006"
+    }.freeze
+    QUESTION_PATTERN = /\A\s*[\(\)\-\u2013]*\s*(?:\u0633(?:\u0624\u0627\u0644)?\s*)?[0-9\u0660-\u0669]+\s*[\.\-:\u060C\(\)\u0640\u2013]*\s*(.+)\z/
+    CHOICE_LABELS = "\u0623\u0625\u0627ABCDEabcde\u0628\u062C\u062F\u0647"
+    CHOICE_PATTERN = /\A\s*([#{CHOICE_LABELS}])\s*[\.\-:\u060C\(\)\u0640\u2013]+\s*(.+)\z/
+    CHOICE_MARKER_PATTERN = /(?:\A|\s)([#{CHOICE_LABELS}])\s*[\.\-:\u060C\(\)\u0640\u2013]+\s*/
     ANSWER_PATTERN = /\A\s*(?:\u0627\u0644\u0625\u062C\u0627\u0628\u0629\s*(?:\u0627\u0644\u0635\u062D\u064A\u062D\u0629)?|\u0627\u0644\u062C\u0648\u0627\u0628|answer)\s*[:\-]\s*(.+)\z/i
     EXPLANATION_PATTERN = /\A\s*(?:\u0627\u0644\u0634\u0631\u062D|\u0627\u0644\u062A\u0641\u0633\u064A\u0631|explanation)\s*[:\-]\s*(.+)\z/i
 
@@ -60,7 +65,7 @@ module Documents
     end
 
     def text_of(node)
-      node.xpath(".//w:t", NAMESPACES).map(&:text).join.strip
+      node.xpath(".//w:t[not(ancestor::mc:Fallback)]", NAMESPACES).map(&:text).join.strip
     end
 
     def parse_table(table, questions)
@@ -90,10 +95,11 @@ module Documents
 
       if (match = text.match(QUESTION_PATTERN))
         finalize_current(questions)
-        @current = question_payload(match[1])
-      elsif @current && (match = text.match(CHOICE_PATTERN))
-        @current[:choice_labels] << match[1]
-        @current[:choices] << { body: match[2].strip }
+        body, choices = split_embedded_choices(match[1])
+        @current = question_payload(body)
+        append_choices(choices)
+      elsif @current && (choices = extract_choices(text)).any?
+        append_choices(choices)
       elsif @current && (match = text.match(ANSWER_PATTERN))
         @current[:answer_hint] = match[1].strip
       elsif @current && (match = text.match(EXPLANATION_PATTERN))
@@ -110,6 +116,29 @@ module Documents
 
     def question_payload(body)
       { body: body.strip, choices: [], choice_labels: [], correct_choice_index: nil, explanation: "", source: "paragraph" }
+    end
+
+    def split_embedded_choices(text)
+      marker = text.match(CHOICE_MARKER_PATTERN)
+      return [ text.strip, [] ] unless marker
+
+      [ text[0...marker.begin(0)].strip, extract_choices(text[marker.begin(0)..]) ]
+    end
+
+    def extract_choices(text)
+      markers = text.to_enum(:scan, CHOICE_MARKER_PATTERN).map { Regexp.last_match }
+      markers.each_with_index.filter_map do |marker, index|
+        body_end = markers[index + 1]&.begin(0) || text.length
+        body = text[marker.end(0)...body_end].to_s.strip
+        [ marker[1], body ] if body.present?
+      end
+    end
+
+    def append_choices(choices)
+      choices.each do |label, body|
+        @current[:choice_labels] << label
+        @current[:choices] << { body: }
+      end
     end
 
     def finalize_current(questions)
