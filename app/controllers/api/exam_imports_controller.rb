@@ -7,8 +7,19 @@ module Api
       require_teacher_or_assistant_permission!(permission)
       return if performed?
 
-      result = Documents::ExamDocxParser.new(params[:file]).call
+      parser = parser_for(params[:file])
+      result = parser.new(params[:file]).call
       render json: { import: result }
+    end
+
+    private
+
+    def parser_for(upload)
+      extension = File.extname(upload&.original_filename.to_s).downcase
+      return Documents::ExamDocxParser if extension == ".docx"
+      return Documents::ExamPdfParser if extension == ".pdf"
+
+      raise ApplicationService::Error, "Only DOCX and PDF files are supported"
     end
   end
 end

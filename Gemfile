@@ -52,3 +52,5 @@ group :development, :test do
 end
 
 gem "rubyzip", "~> 3.2"
+
+gem "pdf-reader", "~> 2.15"
