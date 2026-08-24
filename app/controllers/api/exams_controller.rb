@@ -10,13 +10,15 @@ module Api
       elsif current_user.parent?
         Exam.none
       else
-        require_teacher_or_assistant_permission!("manage_exams")
+        permission = params[:assessment_type].to_s == "homework" ? "manage_homeworks" : "manage_exams"
+        require_teacher_or_assistant_permission!(permission)
         return if performed?
 
         Exam.all
       end
       exams = exams.where(grade_id: params[:grade_id]) if params[:grade_id].present?
       exams = exams.where(lesson_id: params[:lesson_id]) if params[:lesson_id].present?
+      exams = exams.where(assessment_type: params[:assessment_type]) if params[:assessment_type].present?
       exams, pagination = paginate(exams.includes(:exam_questions, :exam_attempts).order(created_at: :desc))
       render json: { exams: exams.map { |exam| serialize_exam(exam) }, pagination: }
     end
@@ -59,7 +61,9 @@ module Api
     private
 
     def authorize_management!
-      require_teacher_or_assistant_permission!("manage_exams")
+      type = params.dig(:exam, :assessment_type) || (params[:id] && Exam.where(id: params[:id]).pick(:assessment_type)) || params[:assessment_type]
+      permission = type.to_s == "homework" ? "manage_homeworks" : "manage_exams"
+      require_teacher_or_assistant_permission!(permission)
     end
 
     def authorize_exam_access!(exam)
@@ -76,6 +80,7 @@ module Api
         :title, :scope_type, :lesson_id, :chapter_id, :branch_id, :academic_year_id, :grade_id,
         :duration_minutes, :max_attempts, :pass_percent, :risk_from_percent, :risk_to_percent,
         :attempt_form_mode, :show_result_immediately, :shuffle_questions, :shuffle_choices, :status,
+        :assessment_type, :show_answers_after_submission, :correct_after_each_answer,
         questions: [ :body, :explanation, :points, { choices: %i[body is_correct] } ]
       )
     end
@@ -83,6 +88,7 @@ module Api
     def replace_questions!(exam, questions)
       return if questions.nil?
 
+      ExamChoice.where(exam_question_id: exam.exam_questions.select(:id)).delete_all
       exam.exam_questions.destroy_all
       questions.each_with_index do |question_attributes, question_index|
         question = exam.exam_questions.create!(question_attributes.except(:choices).merge(position: question_index + 1))
@@ -109,7 +115,9 @@ module Api
         grade_id: exam.grade_id, duration_minutes: exam.duration_minutes, max_attempts: exam.max_attempts,
         pass_percent: exam.pass_percent, risk_from_percent: exam.risk_from_percent,
         risk_to_percent: exam.risk_to_percent, attempt_form_mode: exam.attempt_form_mode,
-        show_result_immediately: exam.show_result_immediately, shuffle_questions: exam.shuffle_questions,
+        assessment_type: exam.assessment_type, show_result_immediately: exam.show_result_immediately,
+        show_answers_after_submission: exam.show_answers_after_submission,
+        correct_after_each_answer: exam.correct_after_each_answer, shuffle_questions: exam.shuffle_questions,
         shuffle_choices: exam.shuffle_choices, status: exam.status, questions_count: exam.exam_questions.size,
         attempts_count: exam.exam_attempts.size
       }

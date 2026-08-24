@@ -1,7 +1,7 @@
 class AssistantPermission < ApplicationRecord
   KEYS = %w[
     manage_students manage_parent_phone manage_devices manage_support_requests
-    manage_content upload_videos manage_exams manage_codes manage_announcements
+    manage_content upload_videos manage_exams manage_homeworks manage_codes manage_announcements
     view_reports manage_academic_years
   ].freeze
 

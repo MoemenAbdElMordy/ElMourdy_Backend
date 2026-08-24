@@ -29,8 +29,8 @@ module ExamAttempts
           choice_id = answer_map.dig(question.id, :choice_id)&.to_i
           choice = question.exam_choices.find { |candidate| candidate.id == choice_id }
           correct = choice&.is_correct? || false
-          @attempt.exam_answers.create!(
-            exam_question: question,
+          answer = @attempt.exam_answers.find_or_initialize_by(exam_question: question)
+          answer.update!(
             selected_choice: choice,
             is_correct: correct,
             points_awarded: correct ? question.points : 0

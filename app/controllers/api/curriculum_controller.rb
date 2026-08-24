@@ -76,7 +76,7 @@ module Api
     end
 
     def serialize_lecture(lecture, lesson_has_access: true)
-      asset = lecture.video_assets.order(created_at: :desc).first
+      asset = lecture.video_source_type_youtube? ? nil : lecture.effective_video_asset
       watch_event = @watch_events_by_lecture&.fetch(lecture.id, nil)
       duration = lecture.duration_seconds.to_i.nonzero? || (asset&.duration_seconds).to_i
       content_payload(lecture).merge(
@@ -87,6 +87,8 @@ module Api
         attachment_url: lecture.attachment_url,
         additional_lesson_ids: lecture.additional_lesson_ids,
         has_thumbnail: lecture.thumbnail_key.present?,
+        video_source_type: lecture.video_source_type,
+        youtube_video_id: lecture.youtube_video_id,
         duration_seconds: duration,
         progress: watch_event && {
           last_position_seconds: watch_event.last_position_seconds,

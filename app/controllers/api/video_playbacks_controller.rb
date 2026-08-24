@@ -6,27 +6,39 @@ module Api
       lecture = Lecture.includes(lesson: { chapter: :branch }, video_assets: :video_variants).find(params[:lecture_id])
       return render_forbidden unless Videos::Access.allowed?(user: current_user, lecture:)
 
-      asset = lecture.video_assets.ready.order(created_at: :desc).first
+      event = current_user.student? ? start_watch_event(lecture) : nil
+      if lecture.video_source_type_youtube?
+        return render json: { playback: base_payload(lecture, event).merge(
+          source_type: "youtube", youtube_video_id: lecture.youtube_video_id, qualities: {}
+        ) }
+      end
+
+      asset = lecture.effective_video_asset
       return render json: { error: { code: "video_not_ready", message: "The video is not ready for playback" } }, status: :conflict unless asset
 
       token = Videos::PlaybackToken.issue(video_asset: asset, viewer: current_user)
-      event = current_user.student? ? start_watch_event(lecture) : nil
       render json: {
-        playback: {
-          lecture: lecture.as_json(only: %i[id title description attachment_name attachment_url duration_seconds]).merge(
-            has_thumbnail: lecture.thumbnail_key.present?
-          ),
+        playback: base_payload(lecture, event).merge(
+          source_type: "uploaded",
           video_asset_id: asset.id,
-          qualities: playback_urls(asset, token),
-          watch_event_id: event&.id,
-          last_position_seconds: event&.last_position_seconds.to_i,
-          watched_seconds: verified_watched_seconds(lecture),
-          watermark: watermark
-        }
+          qualities: playback_urls(asset, token)
+        )
       }
     end
 
     private
+
+    def base_payload(lecture, event)
+      {
+        lecture: lecture.as_json(only: %i[id title description attachment_name attachment_url duration_seconds]).merge(
+          has_thumbnail: lecture.thumbnail_key.present?
+        ),
+        watch_event_id: event&.id,
+        last_position_seconds: event&.last_position_seconds.to_i,
+        watched_seconds: verified_watched_seconds(lecture),
+        watermark: watermark
+      }
+    end
 
     def start_watch_event(lecture)
       current_user.student_profile.lecture_watch_events.create!(

@@ -1,4 +1,5 @@
 class Exam < ApplicationRecord
+  enum :assessment_type, { exam: 0, homework: 1 }, prefix: true, validate: true
   enum :scope_type, { lesson: 0, chapter: 1, branch: 2, comprehensive: 3 },
     prefix: :scope, validate: true
   enum :attempt_form_mode, { same_exam: 0, random_per_attempt: 1 }, validate: true

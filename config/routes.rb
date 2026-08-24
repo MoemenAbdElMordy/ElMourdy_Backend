@@ -58,10 +58,12 @@ Rails.application.routes.draw do
       resource :video_upload, only: %i[create] do
         put :content
         post :complete
+        post :youtube
+        post :reuse
       end
       resource :video_playback, only: :show
     end
-    resources :video_assets, only: %i[show destroy] do
+    resources :video_assets, only: %i[index show destroy] do
       post :retry_processing, on: :member
     end
     resources :lecture_watch_events, only: :update
@@ -77,6 +79,7 @@ Rails.application.routes.draw do
     resources :exams, only: %i[index show create update]
     resources :exam_attempts, only: %i[index show] do
       post :submit, on: :member
+      post :answer, on: :member
     end
     post "exams/:exam_id/attempts", to: "exam_attempts#create"
     resources :announcements, only: %i[index create update destroy]

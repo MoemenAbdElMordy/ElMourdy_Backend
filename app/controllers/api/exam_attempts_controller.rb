@@ -42,6 +42,32 @@ module Api
       render json: { attempt: serialize_attempt(attempt.reload) }
     end
 
+    def answer
+      return render_forbidden unless current_user.student?
+
+      attempt = current_user.student_profile.exam_attempts.in_progress.find(params[:id])
+      question = attempt.exam.exam_questions.find(params.require(:question_id))
+      choice = question.exam_choices.find(params.require(:choice_id))
+      answer = attempt.exam_answers.find_or_initialize_by(exam_question: question)
+      if attempt.exam.correct_after_each_answer? && answer.persisted?
+        raise ApplicationService::Error, "This question has already been answered"
+      end
+      answer.update!(
+        selected_choice: choice,
+        is_correct: choice.is_correct?,
+        points_awarded: choice.is_correct? ? question.points : 0
+      )
+      payload = { question_id: question.id, selected_choice_id: choice.id }
+      if attempt.exam.correct_after_each_answer?
+        payload.merge!(
+          is_correct: answer.is_correct,
+          correct_choice_id: question.exam_choices.find_by!(is_correct: true).id,
+          explanation: question.explanation
+        )
+      end
+      render json: { answer: payload }
+    end
+
     private
 
     def attempts_for_current_user
@@ -51,8 +77,17 @@ module Api
         student_ids = current_user.parent_profile.student_parent_links.active.pluck(:student_profile_id)
         ExamAttempt.where(student_profile_id: student_ids)
       else
-        require_teacher_or_assistant_permission!("manage_exams")
-        ExamAttempt.all unless performed?
+        scope = ExamAttempt.all
+        if current_user.assistant?
+          allowed_types = []
+          permissions = current_user.assistant_profile.assistant_permissions.where(enabled: true).pluck(:permission_key)
+          allowed_types << :exam if permissions.include?("manage_exams")
+          allowed_types << :homework if permissions.include?("manage_homeworks")
+          return render_forbidden if allowed_types.empty?
+
+          scope = scope.joins(:exam).where(exams: { assessment_type: allowed_types })
+        end
+        scope
       end
     end
 
@@ -62,7 +97,8 @@ module Api
       elsif current_user.parent?
         current_user.parent_profile.student_parent_links.active.exists?(student_profile_id: attempt.student_profile_id)
       else
-        require_teacher_or_assistant_permission!("manage_exams")
+        permission = attempt.exam.assessment_type_homework? ? "manage_homeworks" : "manage_exams"
+        require_teacher_or_assistant_permission!(permission)
         !performed?
       end
       render_forbidden unless allowed || performed?
@@ -71,6 +107,7 @@ module Api
     def serialize_summary(attempt)
       {
         id: attempt.id, exam_id: attempt.exam_id, exam_title: attempt.exam.title,
+        assessment_type: attempt.exam.assessment_type,
         student_profile_id: attempt.student_profile_id, student_name: attempt.student_profile.user.name,
         attempt_number: attempt.attempt_number, status: attempt.status, started_at: attempt.started_at,
         submitted_at: attempt.submitted_at, score_points: attempt.score_points, max_points: attempt.max_points,
@@ -93,7 +130,7 @@ module Api
           choices: question.exam_choices.order(:position).map { |choice| { id: choice.id, body: choice.body } },
           selected_choice_id: answer&.selected_choice_id
         }
-        if attempt.submitted? && attempt.exam.show_result_immediately?
+        if attempt.submitted? && attempt.exam.show_result_immediately? && attempt.exam.show_answers_after_submission?
           item[:is_correct] = answer&.is_correct || false
           item[:correct_choice_id] = question.exam_choices.find(&:is_correct?)&.id
           item[:explanation] = question.explanation

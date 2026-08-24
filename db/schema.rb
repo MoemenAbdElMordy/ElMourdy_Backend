@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_090000) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -233,9 +233,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
 
   create_table "exams", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "academic_year_id", null: false
+    t.integer "assessment_type", default: 0, null: false
     t.integer "attempt_form_mode", default: 0, null: false
     t.bigint "branch_id"
     t.bigint "chapter_id"
+    t.boolean "correct_after_each_answer", default: false, null: false
     t.datetime "created_at", null: false
     t.bigint "created_by_user_id"
     t.integer "duration_minutes", null: false
@@ -246,6 +248,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
     t.integer "risk_from_percent", default: 50, null: false
     t.integer "risk_to_percent", default: 60, null: false
     t.integer "scope_type", null: false
+    t.boolean "show_answers_after_submission", default: true, null: false
     t.boolean "show_result_immediately", default: true, null: false
     t.boolean "shuffle_choices", default: false, null: false
     t.boolean "shuffle_questions", default: false, null: false
@@ -253,6 +256,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.index ["academic_year_id", "grade_id", "status", "scope_type"], name: "idx_exams_year_grade"
+    t.index ["assessment_type", "academic_year_id", "grade_id", "status"], name: "idx_exams_type_year_grade_status"
     t.index ["branch_id", "status"], name: "index_exams_on_branch_id_and_status"
     t.index ["chapter_id", "status"], name: "index_exams_on_chapter_id_and_status"
     t.index ["created_by_user_id"], name: "index_exams_on_created_by_user_id"
@@ -260,6 +264,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
     t.index ["lesson_id", "status"], name: "index_exams_on_lesson_id_and_status"
     t.check_constraint "((`scope_type` = 0) and (`lesson_id` is not null) and (`chapter_id` is null) and (`branch_id` is null)) or ((`scope_type` = 1) and (`lesson_id` is null) and (`chapter_id` is not null) and (`branch_id` is null)) or ((`scope_type` = 2) and (`lesson_id` is null) and (`chapter_id` is null) and (`branch_id` is not null)) or ((`scope_type` = 3) and (`lesson_id` is null) and (`chapter_id` is null) and (`branch_id` is null))", name: "chk_exam_scope"
     t.check_constraint "(`pass_percent` between 0 and 100) and (`risk_from_percent` between 0 and 100) and (`risk_to_percent` between 0 and 100) and (`risk_from_percent` <= `risk_to_percent`)", name: "chk_exam_percentages"
+    t.check_constraint "`assessment_type` between 0 and 1", name: "chk_exams_assessment_type"
     t.check_constraint "`attempt_form_mode` between 0 and 1", name: "chk_exams_attempt_form_mode"
     t.check_constraint "`duration_minutes` > 0", name: "chk_exam_duration"
     t.check_constraint "`max_attempts` > 0", name: "chk_exam_max_attempts"
@@ -317,15 +322,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
     t.bigint "lesson_id", null: false
     t.integer "position", null: false
     t.datetime "publish_at"
+    t.bigint "selected_video_asset_id"
     t.integer "status", default: 0, null: false
     t.string "thumbnail_key"
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.integer "video_source_type", default: 0, null: false
+    t.string "youtube_video_id"
     t.index ["lesson_id", "position"], name: "index_lectures_on_lesson_id_and_position", unique: true
     t.index ["lesson_id", "status", "publish_at", "position"], name: "idx_published_lectures"
+    t.index ["selected_video_asset_id"], name: "index_lectures_on_selected_video_asset_id"
     t.check_constraint "(`duration_seconds` is null) or (`duration_seconds` > 0)", name: "chk_lecture_duration"
     t.check_constraint "`position` > 0", name: "chk_lectures_position"
     t.check_constraint "`status` between 0 and 3", name: "chk_lectures_status"
+    t.check_constraint "`video_source_type` between 0 and 1", name: "chk_lectures_video_source_type"
   end
 
   create_table "lesson_access_grants", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -719,6 +729,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
   add_foreign_key "lecture_watch_events", "lectures"
   add_foreign_key "lecture_watch_events", "student_profiles"
   add_foreign_key "lectures", "lessons"
+  add_foreign_key "lectures", "video_assets", column: "selected_video_asset_id"
   add_foreign_key "lesson_access_grants", "academic_years"
   add_foreign_key "lesson_access_grants", "activation_codes"
   add_foreign_key "lesson_access_grants", "lessons"

@@ -83,6 +83,45 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_equal "The original video is no longer available; upload it again", response.parsed_body.dig("error", "message")
   end
 
+  test "teacher permanently deletes an unshared video and all stored qualities" do
+    asset = ready_asset
+    prefix = File.dirname(File.dirname(asset.original_file_key))
+    playlist_key = "#{prefix}/hls/720p/index.m3u8"
+    @lecture.update!(video_source_type: :uploaded, selected_video_asset: asset)
+
+    delete api_video_asset_url(asset), headers: authorization(@teacher_token)
+
+    assert_response :no_content
+    assert_not VideoAsset.exists?(asset.id)
+    assert_not Videos::Storage.build.exist?(playlist_key)
+    assert_nil @lecture.reload.selected_video_asset_id
+  end
+
+  test "teacher cannot delete a video shared with another lecture" do
+    asset = ready_asset
+    other_lecture = Lecture.create!(lesson: @lesson, title: "Shared Lecture", position: 2, status: :published)
+    other_lecture.update!(video_source_type: :uploaded, selected_video_asset: asset)
+
+    delete api_video_asset_url(asset), headers: authorization(@teacher_token)
+
+    assert_response :unprocessable_entity
+    assert VideoAsset.exists?(asset.id)
+    assert_equal asset.id, other_lecture.reload.selected_video_asset_id
+  end
+
+  test "video library reports storage usage and whether deletion is safe" do
+    asset = ready_asset
+    @lecture.update!(video_source_type: :uploaded, selected_video_asset: asset)
+
+    get api_video_assets_url, headers: authorization(@teacher_token)
+
+    assert_response :success
+    item = response.parsed_body.fetch("video_assets").find { |candidate| candidate.fetch("id") == asset.id }
+    assert_equal 100, item.fetch("storage_size_bytes")
+    assert_equal 1, item.fetch("used_by_lectures_count")
+    assert item.fetch("can_delete")
+  end
+
   test "authorized student progress requires verified watch time and ignores seeking" do
     student, token = enrolled_student_with_access
     asset = ready_asset
@@ -151,6 +190,32 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     get api_lecture_video_playback_url(@lecture), headers: authorization(token)
 
     assert_response :forbidden
+  end
+
+  test "teacher attaches a YouTube video and student plays it inside the platform" do
+    _student, token = enrolled_student_with_access
+    post youtube_api_lecture_video_upload_url(@lecture), params: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }, headers: authorization(@teacher_token), as: :json
+    assert_response :success
+
+    get api_lecture_video_playback_url(@lecture), headers: authorization(token)
+    assert_response :success
+    assert_equal "youtube", response.parsed_body.dig("playback", "source_type")
+    assert_equal "dQw4w9WgXcQ", response.parsed_body.dig("playback", "youtube_video_id")
+    assert_empty response.parsed_body.dig("playback", "qualities")
+  end
+
+  test "teacher reuses an existing processed video without uploading it again" do
+    _student, token = enrolled_student_with_access
+    source_asset = ready_asset
+    another_lecture = Lecture.create!(lesson: @lesson, title: "Reused Lecture", position: 2, status: :published)
+
+    post reuse_api_lecture_video_upload_url(another_lecture), params: { video_asset_id: source_asset.id }, headers: authorization(@teacher_token), as: :json
+    assert_response :success
+    assert_equal source_asset.id, another_lecture.reload.selected_video_asset_id
+
+    get api_lecture_video_playback_url(another_lecture), headers: authorization(token)
+    assert_response :success
+    assert_equal source_asset.id, response.parsed_body.dig("playback", "video_asset_id")
   end
 
   test "delivery rejects an expired or invalid token" do

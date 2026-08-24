@@ -38,6 +38,41 @@ class Api::ExamAttemptsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "homework can correct the first answer immediately and locks the question" do
+    exam = create_exam
+    exam.update!(assessment_type: :homework, correct_after_each_answer: true)
+    student = enrolled_student(exam)
+    token = start_test_session(student.user).raw_token
+    post "/api/exams/#{exam.id}/attempts", headers: auth(token), as: :json
+    attempt_id = response.parsed_body.dig("attempt", "id")
+    question = exam.exam_questions.first
+    choice = question.exam_choices.find_by!(is_correct: true)
+
+    post "/api/exam_attempts/#{attempt_id}/answer", params: { question_id: question.id, choice_id: choice.id }, headers: auth(token), as: :json
+    assert_response :success
+    assert_equal true, response.parsed_body.dig("answer", "is_correct")
+    assert_equal choice.id, response.parsed_body.dig("answer", "correct_choice_id")
+
+    post "/api/exam_attempts/#{attempt_id}/answer", params: { question_id: question.id, choice_id: choice.id }, headers: auth(token), as: :json
+    assert_response :unprocessable_entity
+  end
+
+  test "homework result hides answer details when configured" do
+    exam = create_exam
+    exam.update!(assessment_type: :homework, show_answers_after_submission: false)
+    student = enrolled_student(exam)
+    token = start_test_session(student.user).raw_token
+    post "/api/exams/#{exam.id}/attempts", headers: auth(token), as: :json
+    attempt_id = response.parsed_body.dig("attempt", "id")
+    answers = exam.exam_questions.map { |question| { question_id: question.id, choice_id: question.exam_choices.find_by!(is_correct: true).id } }
+
+    post "/api/exam_attempts/#{attempt_id}/submit", params: { answers: }, headers: auth(token), as: :json
+
+    assert_response :success
+    assert_nil response.parsed_body.dig("attempt", "questions", 0, "correct_choice_id")
+    assert_nil response.parsed_body.dig("attempt", "questions", 0, "is_correct")
+  end
+
   private
 
   def enrolled_student(exam)

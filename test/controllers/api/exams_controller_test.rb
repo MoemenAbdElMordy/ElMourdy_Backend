@@ -26,6 +26,38 @@ class Api::ExamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ exam.id ], response.parsed_body.fetch("exams").pluck("id")
   end
 
+  test "assistant homework permission is independent from exam permission" do
+    homework = create_exam
+    homework.update!(assessment_type: :homework)
+    assistant = create_user(role: :assistant)
+    profile = AssistantProfile.create!(user: assistant)
+    profile.assistant_permissions.create!(permission_key: "manage_homeworks", enabled: true)
+    token = Sessions::Start.call(user: assistant).raw_token
+
+    get "/api/exams", params: { assessment_type: "homework" }, headers: auth(token)
+    assert_response :success
+    assert_equal [ homework.id ], response.parsed_body.fetch("exams").pluck("id")
+
+    get "/api/exams", params: { assessment_type: "exam" }, headers: auth(token)
+    assert_response :forbidden
+  end
+
+  test "teacher can replace questions before attempts begin" do
+    exam = create_exam
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    payload = exam_payload(exam.academic_year, exam.grade, exam.lesson)
+    payload[:title] = "Updated homework"
+    payload[:assessment_type] = "homework"
+
+    patch "/api/exams/#{exam.id}", params: { exam: payload }, headers: auth(token), as: :json
+
+    assert_response :success
+    assert_equal "Updated homework", exam.reload.title
+    assert_equal 1, exam.exam_questions.count
+    assert_equal 2, exam.exam_questions.first.exam_choices.count
+  end
+
   private
 
   def exam_payload(year, grade, lesson)

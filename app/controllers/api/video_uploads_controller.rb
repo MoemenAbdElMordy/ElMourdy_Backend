@@ -28,10 +28,25 @@ module Api
       raise ApplicationService::Error, "The uploaded video could not be found" unless storage.exist?(asset.original_file_key)
       raise ApplicationService::Error, "The uploaded video exceeds the 6 GB limit" if storage.size(asset.original_file_key) > MAX_FILE_SIZE
 
+      lecture.update!(video_source_type: :uploaded, selected_video_asset: asset, youtube_video_id: nil)
       return render json: { video_asset: serialize(asset) }, status: :accepted if asset.processing? || asset.ready?
 
       Videos::ProcessingDispatcher.call(asset.id)
       render json: { video_asset: serialize(asset) }, status: :accepted
+    end
+
+    def youtube
+      video_id = youtube_video_id(params.require(:url))
+      raise ApplicationService::Error, "The YouTube URL is not valid" unless video_id
+
+      lecture.update!(video_source_type: :youtube, youtube_video_id: video_id, selected_video_asset: nil)
+      render json: { lecture: { id: lecture.id, video_source_type: lecture.video_source_type, youtube_video_id: video_id } }
+    end
+
+    def reuse
+      asset = VideoAsset.ready.find(params.require(:video_asset_id))
+      lecture.update!(video_source_type: :uploaded, selected_video_asset: asset, youtube_video_id: nil)
+      render json: { video_asset: serialize(asset) }
     end
 
     private
@@ -47,6 +62,22 @@ module Api
     def original_key
       extension = File.extname(params[:filename].to_s).downcase
       "videos/#{SecureRandom.uuid}/original/source#{extension}"
+    end
+
+    def youtube_video_id(value)
+      raw = value.to_s.strip
+      return raw if raw.match?(/\A[A-Za-z0-9_-]{11}\z/)
+
+      uri = URI.parse(raw)
+      host = uri.host.to_s.downcase.sub(/\Awww\./, "")
+      id = if host == "youtu.be"
+        uri.path.split("/").reject(&:blank?).first
+      elsif %w[youtube.com m.youtube.com].include?(host)
+        uri.path == "/watch" ? Rack::Utils.parse_query(uri.query)["v"] : uri.path.match(%r{\A/(?:embed|shorts)/([^/]+)})&.captures&.first
+      end
+      id if id&.match?(/\A[A-Za-z0-9_-]{11}\z/)
+    rescue URI::InvalidURIError
+      nil
     end
 
     def upload_payload(asset)
