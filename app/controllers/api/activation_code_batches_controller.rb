@@ -22,6 +22,12 @@ module Api
 
     def export
       batch = ActivationCodeBatch.includes(:lesson, :academic_year, :grade, activation_codes: :redeemed_by_student_profile).find(params[:id])
+      if params[:format] == "docx"
+        codes = batch.activation_codes.order(:id).map { |code| serialize_code(code) }
+        document = Documents::ReportDocuments.activation_codes(batch, codes)
+        return send_data document, filename: "activation-codes-#{batch.id}.docx", type: Documents::DocxBuilder::CONTENT_TYPE
+      end
+
       csv = CSV.generate do |rows|
         rows << %w[code status lesson grade academic_year redeemed_by redeemed_at expires_on]
         batch.activation_codes.order(:id).each do |code|

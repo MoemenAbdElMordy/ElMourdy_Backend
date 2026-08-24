@@ -23,6 +23,18 @@ module Api
       render json: { student: serialize_student(user, detailed: true) }
     end
 
+    def export
+      users = filtered_students.includes(student_profile: { student_enrollments: %i[grade academic_year] }).order(created_at: :desc)
+      document = Documents::ReportDocuments.students(users)
+      send_data document, filename: "students-#{Date.current}.docx", type: Documents::DocxBuilder::CONTENT_TYPE
+    end
+
+    def export_one
+      user = student_user
+      document = Documents::ReportDocuments.student(user)
+      send_data document, filename: "student-#{user.id}-report.docx", type: Documents::DocxBuilder::CONTENT_TYPE
+    end
+
     def update
       user = student_user
       user.update!(status: student_params.fetch(:status))
@@ -97,6 +109,14 @@ module Api
     end
 
     private
+
+    def filtered_students
+      users = User.student
+      users = users.where(status: params[:status]) if User.statuses.key?(params[:status])
+      users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query", query: "%#{params[:query]}%") if params[:query].present?
+      users = users.joins(student_profile: :student_enrollments).where(student_enrollments: { grade_id: params[:grade_id] }).distinct if params[:grade_id].present?
+      users
+    end
 
     def student_user
       User.student.includes(student_profile: { student_enrollments: %i[grade academic_year] }).find(params[:id])

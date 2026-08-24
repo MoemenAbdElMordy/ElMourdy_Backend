@@ -27,7 +27,10 @@ Rails.application.routes.draw do
     post "academic_years/:id/copy_content", to: "academic_years#copy_content"
     post "academic_years/:id/rollover_students", to: "academic_years#rollover_students"
     resources :grades, only: :index
-    resources :students, only: %i[index show update]
+    resources :students, only: %i[index show update] do
+      get :export, on: :collection
+      get :export_one, path: :export, on: :member
+    end
     resources :parents, only: %i[index show update] do
       patch :password, on: :member
     end
@@ -38,7 +41,9 @@ Rails.application.routes.draw do
     get "students/:id/preview", to: "student_previews#show"
     resources :assistants, only: %i[index create update destroy]
     resource :dashboard, only: :show
-    resource :management_report, only: :show
+    resource :management_report, only: :show do
+      get :export
+    end
     resources :audit_logs, only: :index
     resources :free_lectures, only: :index
     get "curriculum", to: "curriculum#show"
@@ -77,6 +82,7 @@ Rails.application.routes.draw do
     end
     resources :lesson_access_grants, only: %i[index create update]
     resources :exams, only: %i[index show create update]
+    resources :exam_imports, only: :create
     resources :exam_attempts, only: %i[index show] do
       post :submit, on: :member
       post :answer, on: :member

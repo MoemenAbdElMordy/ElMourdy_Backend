@@ -26,6 +26,13 @@ class Api::ActivationCodesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "code,status,lesson"
     assert_includes response.body, "ELM-"
+
+    get "/api/activation_code_batches/#{batch_id}/export.docx", headers: authorization_header(token)
+    assert_response :success
+    assert_equal Documents::DocxBuilder::CONTENT_TYPE, response.media_type
+    Zip::File.open_buffer(response.body) do |archive|
+      assert_includes archive.find_entry("word/document.xml").get_input_stream.read, "Activation Code Batch"
+    end
   end
 
   test "student redeems a matching code and cannot reuse it" do
