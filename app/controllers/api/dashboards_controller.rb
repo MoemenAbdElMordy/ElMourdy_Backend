@@ -105,7 +105,9 @@ module Api
     def management_dashboard
       active_students = User.student.active
       last_seen = UserSession.where(user_id: active_students.select(:id)).group(:user_id).maximum(:last_seen_at)
-      inactive_count = active_students.count { |student| last_seen[student.id].nil? || last_seen[student.id] < 30.days.ago }
+      inactive_count = active_students.count do |student|
+        (last_seen[student.id] || student.last_login_at || student.created_at) < 30.days.ago
+      end
       submitted = ExamAttempt.submitted.includes(student_profile: :user)
       top_scores = submitted.group(:student_profile_id).maximum(:percent)
       top_students = StudentProfile.includes(:user).where(id: top_scores.keys)

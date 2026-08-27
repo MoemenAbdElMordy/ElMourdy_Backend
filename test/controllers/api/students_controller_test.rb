@@ -45,6 +45,28 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     assert student.user.reload.suspended?
   end
 
+  test "returns watched and unwatched video progress for the enrolled curriculum" do
+    student = enrolled_student(name: "Progress Student")
+    branch = Branch.create!(academic_year: @year, grade: @grade, title: "Grammar", position: 1, status: :published)
+    chapter = branch.chapters.create!(title: "Chapter One", position: 1, status: :published)
+    lesson = chapter.lessons.create!(title: "Lesson One", position: 1, status: :published)
+    watched = lesson.lectures.create!(title: "Watched Video", position: 1, status: :published,
+      video_source_type: :youtube, youtube_video_id: "abcdefghijk", duration_seconds: 100)
+    lesson.lectures.create!(title: "Unwatched Video", position: 2, status: :published,
+      video_source_type: :youtube, youtube_video_id: "lmnopqrstuv", duration_seconds: 200)
+    student.lecture_watch_events.create!(lecture: watched, started_at: 10.minutes.ago,
+      watched_seconds: 40, last_position_seconds: 50)
+
+    get "/api/students/#{student.user_id}", headers: authorization_header(@token)
+
+    assert_response :success
+    progress = response.parsed_body.dig("student", "video_progress")
+    assert_equal [ "Watched Video", "Unwatched Video" ], progress.pluck("title")
+    assert_equal 40, progress.first["progress_percent"]
+    assert progress.first["watched"]
+    assert_not progress.second["watched"]
+  end
+
   test "changes enrollment and resets password while ending active sessions" do
     student = enrolled_student(name: "Transferred Student")
     next_year = AcademicYear.create!(

@@ -37,6 +37,19 @@ class Api::DashboardsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal User.student.count, response.parsed_body.dig("dashboard", "statistics", "total_students")
+    assert_equal 0, response.parsed_body.dig("dashboard", "statistics", "inactive_students")
+  end
+
+  test "teacher dashboard counts only students inactive for thirty days" do
+    teacher = create_user(role: :teacher)
+    old_student = create_student
+    old_student.user.update_columns(created_at: 31.days.ago, updated_at: 31.days.ago)
+    token = Sessions::Start.call(user: teacher).raw_token
+
+    get "/api/dashboard", headers: auth(token)
+
+    assert_response :success
+    assert_equal 1, response.parsed_body.dig("dashboard", "statistics", "inactive_students")
   end
 
   test "assistant can load the operational dashboard" do

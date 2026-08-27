@@ -23,6 +23,7 @@ class Exam < ApplicationRecord
     numericality: { only_integer: true, in: 0..100 }
   validate :risk_range_is_ordered
   validate :scope_reference_matches_type
+  validate :scope_matches_academic_context
 
   scope :available, -> { published.includes(:academic_year, :grade) }
 
@@ -40,5 +41,13 @@ class Exam < ApplicationRecord
     valid = references.all? { |type, value| type == expected ? value.present? : value.nil? }
     valid = references.values.all?(&:nil?) if expected == :comprehensive
     errors.add(:scope_type, "does not match the supplied scope reference") unless valid
+  end
+
+  def scope_matches_academic_context
+    scoped_branch = branch || chapter&.branch || lesson&.chapter&.branch
+    return unless scoped_branch
+
+    errors.add(:grade, "must match the selected scope") if scoped_branch.grade_id != grade_id
+    errors.add(:academic_year, "must match the selected scope") if scoped_branch.academic_year_id != academic_year_id
   end
 end

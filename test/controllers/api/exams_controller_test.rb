@@ -26,6 +26,18 @@ class Api::ExamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ exam.id ], response.parsed_body.fetch("exams").pluck("id")
   end
 
+  test "exam grade must match its selected lesson" do
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    year, grade, _branch, _chapter, lesson = create_curriculum
+    other_grade = Grade.find_or_create_by!(level: 2) { |record| record.name = "Second Secondary" }
+    payload = exam_payload(year, grade, lesson).merge(grade_id: other_grade.id)
+
+    post "/api/exams", params: { exam: payload }, headers: auth(token), as: :json
+
+    assert_response :unprocessable_entity
+  end
+
   test "assistant homework permission is independent from exam permission" do
     homework = create_exam
     homework.update!(assessment_type: :homework)

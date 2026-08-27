@@ -179,8 +179,51 @@ module Api
           completed_lectures: profile.lecture_watch_events.where.not(completed_at: nil).distinct.count(:lecture_id),
           watched_lectures: profile.lecture_watch_events.distinct.count(:lecture_id),
           highest_score: profile.exam_attempts.submitted.maximum(:percent)&.to_f
-        }
+        },
+        video_progress: video_progress(profile, enrollment)
       )
+    end
+
+    def video_progress(profile, enrollment)
+      return [] unless enrollment
+
+      lesson_ids = Lesson.joins(chapter: :branch).where(
+        branches: { academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id }
+      ).select(:id)
+      lecture_ids = Lecture.where(lesson_id: lesson_ids)
+        .or(Lecture.where(id: LecturePlacement.where(lesson_id: lesson_ids).select(:lecture_id))).select(:id)
+      lectures = Lecture.published
+        .where("lectures.publish_at IS NULL OR lectures.publish_at <= ?", Time.current)
+        .where(id: lecture_ids)
+        .includes(:selected_video_asset, :video_assets, lesson: { chapter: :branch }).distinct.order(:position)
+        .select { |lecture| lecture.video_source_type_youtube? || lecture.effective_video_asset.present? }
+
+      events = profile.lecture_watch_events.where(lecture_id: lectures.map(&:id))
+      watched_seconds = events.group(:lecture_id).sum(:watched_seconds)
+      last_positions = events.group(:lecture_id).maximum(:last_position_seconds)
+      last_watched = events.group(:lecture_id).maximum(:updated_at)
+      completed_ids = events.where.not(completed_at: nil).distinct.pluck(:lecture_id).to_set
+
+      lectures.map do |lecture|
+        duration = lecture.duration_seconds.to_i.nonzero? || (lecture.effective_video_asset&.duration_seconds).to_i
+        watched = watched_seconds.fetch(lecture.id, 0)
+        completed = completed_ids.include?(lecture.id)
+        percent = completed ? 100 : (duration.positive? ? [ (watched.to_f / duration * 100).round, 100 ].min : 0)
+        {
+          lecture_id: lecture.id,
+          title: lecture.title,
+          lesson: lecture.lesson.title,
+          chapter: lecture.lesson.chapter.title,
+          branch: lecture.lesson.chapter.branch.title,
+          duration_seconds: duration,
+          watched_seconds: watched,
+          last_position_seconds: last_positions.fetch(lecture.id, 0),
+          progress_percent: percent,
+          watched: watched.positive? || completed,
+          completed:,
+          last_watched_at: last_watched[lecture.id]
+        }
+      end
     end
   end
 end
