@@ -38,6 +38,19 @@ class Api::ExamsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "teacher can create a grade-wide exam without selecting a lesson" do
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    year, grade, _branch, _chapter, lesson = create_curriculum
+    payload = exam_payload(year, grade, lesson).merge(scope_type: "comprehensive", lesson_id: nil)
+
+    post "/api/exams", params: { exam: payload }, headers: auth(token), as: :json
+
+    assert_response :created
+    assert_equal "comprehensive", response.parsed_body.dig("exam", "scope_type")
+    assert_nil response.parsed_body.dig("exam", "lesson_id")
+  end
+
   test "assistant homework permission is independent from exam permission" do
     homework = create_exam
     homework.update!(assessment_type: :homework)
