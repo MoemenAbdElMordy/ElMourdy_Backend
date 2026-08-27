@@ -49,6 +49,7 @@ class Api::TeacherControlControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal 1, response.parsed_body.dig("report", "overview", "students_count")
     assert_equal student.user_id, response.parsed_body.dig("report", "students", 0, "id")
+    assert_equal student.center_name, response.parsed_body.dig("report", "students", 0, "center_name")
   end
 
   test "non teacher cannot manage parents or preview students" do

@@ -149,6 +149,7 @@ module Api
         status: user.status,
         governorate: profile.governorate,
         school: profile.school,
+        center_name: profile.center_name,
         grade: enrollment&.grade&.name,
         grade_id: enrollment&.grade_id,
         grade_level: enrollment&.grade&.level,

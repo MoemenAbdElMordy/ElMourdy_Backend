@@ -54,6 +54,7 @@ module Api
         {
           id: profile.user_id, name: profile.user.name, grade: enrollment.grade.name,
           academic_year: enrollment.academic_year.name,
+          center_name: profile.center_name,
           average_score: scores[profile.id]&.to_f,
           completed_lectures: completed.fetch(profile.id, 0),
           attempts_count: attempt_counts.fetch(profile.id, 0),

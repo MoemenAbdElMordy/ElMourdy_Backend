@@ -16,6 +16,7 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal [ matching.user_id ], response.parsed_body["students"].pluck("id")
+    assert_equal matching.center_name, response.parsed_body.dig("students", 0, "center_name")
   end
 
   test "paginates students and returns navigation metadata" do
@@ -37,6 +38,7 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     get "/api/students/#{student.user_id}", headers: authorization_header(@token)
     assert_response :success
     assert_equal @grade.name, response.parsed_body.dig("student", "grade")
+    assert_equal student.center_name, response.parsed_body.dig("student", "center_name")
 
     patch "/api/students/#{student.user_id}", params: { student: { status: "suspended" } },
       headers: authorization_header(@token), as: :json

@@ -7,9 +7,12 @@ module Documents
         rows = users.map do |user|
           profile = user.student_profile
           enrollment = profile.student_enrollments.active.max_by(&:enrolled_at)
-          [ user.name, user.phone_e164, user.status, enrollment&.grade&.name, enrollment&.academic_year&.name, profile.school ]
+          [
+            user.name, user.phone_e164, user.status, enrollment&.grade&.name,
+            enrollment&.academic_year&.name, profile.school, profile.center_name
+          ]
         end
-        document.table(headers: [ "Name", "Phone", "Status", "Grade", "Academic year", "School" ], rows:)
+        document.table(headers: [ "Name", "Phone", "Status", "Grade", "Academic year", "School", "Center" ], rows:)
         document.render
       end
 
@@ -20,7 +23,8 @@ module Documents
         document.table(headers: [ "Field", "Value" ], rows: [
           [ "Name", user.name ], [ "Phone", user.phone_e164 ], [ "Email", user.email ], [ "Status", user.status ],
           [ "Grade", enrollment&.grade&.name ], [ "Academic year", enrollment&.academic_year&.name ],
-          [ "School", profile.school ], [ "Governorate", profile.governorate ], [ "Parent phone", profile.parent_phone_e164 ],
+          [ "School", profile.school ], [ "Center", profile.center_name ], [ "Governorate", profile.governorate ],
+          [ "Parent phone", profile.parent_phone_e164 ],
           [ "Active devices", profile.device_registrations.active.count ],
           [ "Completed lectures", profile.lecture_watch_events.where.not(completed_at: nil).distinct.count(:lecture_id) ],
           [ "Highest score", profile.exam_attempts.submitted.maximum(:percent)&.to_f ]
@@ -41,9 +45,11 @@ module Documents
         document.heading("Students", level: 2)
         rows = students.map do |student|
           [ student[:name], student[:grade], student[:academic_year], student[:average_score]&.round(2),
-            student[:attempts_count], student[:completed_lectures], student[:last_active_at] ]
+            student[:attempts_count], student[:completed_lectures], student[:center_name], student[:last_active_at] ]
         end
-        document.table(headers: [ "Name", "Grade", "Academic year", "Average score", "Attempts", "Completed lectures", "Last active" ], rows:)
+        document.table(headers: [
+          "Name", "Grade", "Academic year", "Average score", "Attempts", "Completed lectures", "Center", "Last active"
+        ], rows:)
         document.render
       end
 

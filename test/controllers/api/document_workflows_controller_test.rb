@@ -66,16 +66,17 @@ class Api::DocumentWorkflowsControllerTest < ActionDispatch::IntegrationTest
 
   test "teacher exports student and management reports as valid DOCX documents" do
     student = create_student
+    student.update!(center_name: "Main Center")
     StudentEnrollment.create!(student_profile: student, academic_year: @year, grade: @grade, status: :active, enrolled_at: Time.current)
 
     get export_api_students_url, headers: authorization_header(@token)
-    assert_docx_response("Student Report")
+    assert_docx_response("Student Report", "Center", "Main Center")
 
     get export_one_api_student_url(student.user), headers: authorization_header(@token)
-    assert_docx_response("Student Profile Report")
+    assert_docx_response("Student Profile Report", "Center", "Main Center")
 
     get export_api_management_report_url, headers: authorization_header(@token)
-    assert_docx_response("Platform Management Report")
+    assert_docx_response("Platform Management Report", "Center", "Main Center")
   end
 
   private
@@ -123,12 +124,12 @@ class Api::DocumentWorkflowsControllerTest < ActionDispatch::IntegrationTest
     pdf << "trailer\n<< /Size #{objects.size + 1} /Root 1 0 R >>\nstartxref\n#{xref_offset}\n%%EOF\n"
   end
 
-  def assert_docx_response(expected_text)
+  def assert_docx_response(*expected_texts)
     assert_response :success
     assert_equal Documents::DocxBuilder::CONTENT_TYPE, response.media_type
     Zip::File.open_buffer(response.body) do |archive|
       xml = archive.find_entry("word/document.xml").get_input_stream.read
-      assert_includes xml, expected_text
+      expected_texts.each { |text| assert_includes xml, text }
     end
   end
 end
