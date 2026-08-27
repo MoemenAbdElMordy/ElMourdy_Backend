@@ -11,6 +11,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
         birth_date: "2008-04-16",
         governorate: "Cairo",
         school: "Test School",
+        center_name: "Main Center",
         email: "new.student@example.test",
         grade_level: grade.level,
         password: "ValidPassword123!",
@@ -49,6 +50,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal year, user.student_profile.student_enrollments.active.first.academic_year
     assert_equal grade, user.student_profile.student_enrollments.active.first.grade
     assert_equal "Test School", user.student_profile.school
+    assert_equal "Main Center", user.student_profile.center_name
     assert_equal "new.student@example.test", user.email
   end
 
@@ -88,6 +90,7 @@ class Api::RegistrationsControllerTest < ActionDispatch::IntegrationTest
         parent_phone: "+201012345678",
         birth_date: "2008-04-16",
         governorate: "Cairo",
+        center_name: "Main Center",
         grade_level: grade.level,
         email: "same.phone@example.test",
         password: "ValidPassword123!",

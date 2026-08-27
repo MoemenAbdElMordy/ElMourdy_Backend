@@ -14,6 +14,7 @@ class StudentProfile < ApplicationRecord
 
   validates :birth_date, presence: true
   validates :parent_phone_e164, presence: true
+  validates :center_name, presence: true
   validates_e164_phone :parent_phone_e164
   validate :user_has_student_role
 

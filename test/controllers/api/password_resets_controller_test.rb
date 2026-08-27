@@ -52,7 +52,12 @@ class Api::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
 
   test "rejects an invalid client token" do
     user = create_user(role: :student)
-    StudentProfile.create!(user:, birth_date: Date.new(2008, 1, 1), parent_phone_e164: unique_phone)
+    StudentProfile.create!(
+      user:,
+      birth_date: Date.new(2008, 1, 1),
+      parent_phone_e164: unique_phone,
+      center_name: "Test Center"
+    )
     result = WhatsappVerifications::Request.call(phone: user.phone_e164, purpose: :password_reset, user:)
 
     post "/api/password_resets/#{result.verification.id}/status", params: {

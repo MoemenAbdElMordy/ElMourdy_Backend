@@ -20,7 +20,8 @@ module RecordFactory
     StudentProfile.create!(
       user:,
       birth_date: Date.new(2008, 1, 1),
-      parent_phone_e164: parent_phone
+      parent_phone_e164: parent_phone,
+      center_name: "Test Center"
     )
   end
 

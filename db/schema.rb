@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_27_120000) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -587,6 +587,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_090000) do
 
   create_table "student_profiles", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.date "birth_date", null: false
+    t.string "center_name"
     t.datetime "created_at", null: false
     t.string "governorate"
     t.text "notes"

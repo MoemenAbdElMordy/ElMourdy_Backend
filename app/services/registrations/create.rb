@@ -64,7 +64,8 @@ module Registrations
         birth_date: @attributes.fetch(:birth_date),
         parent_phone_e164: parent_phone,
         governorate: @attributes[:governorate],
-        school: @attributes[:school]
+        school: @attributes[:school],
+        center_name: @attributes.fetch(:center_name)
       )
     end
 

@@ -78,6 +78,37 @@ class Api::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "allows a student with missing center name to log in but blocks platform data until profile completion" do
+    student = create_student
+    student.update_column(:center_name, nil)
+
+    post api_session_url, params: {
+      session: {
+        phone: student.user.phone_e164,
+        password: "ValidPassword123!",
+        device_fingerprint: "center-required-device"
+      }
+    }, as: :json
+
+    assert_response :created
+    token = response.parsed_body.fetch("token")
+    assert_not response.parsed_body.dig("user", "profile_complete")
+
+    get api_dashboard_url, headers: authorization_header(token), as: :json
+    assert_response :forbidden
+    assert_equal "student_profile_incomplete", response.parsed_body.dig("error", "code")
+
+    patch api_profile_url, params: {
+      profile: { center_name: "Main Center" }
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :success
+    assert response.parsed_body.dig("user", "profile_complete")
+
+    get api_dashboard_url, headers: authorization_header(token), as: :json
+    assert_response :success
+  end
+
   test "returns one generic error for invalid credentials" do
     post api_session_url, params: {
       session: { phone: "01012345678", password: "wrong-password" }

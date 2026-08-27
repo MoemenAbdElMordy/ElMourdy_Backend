@@ -10,7 +10,22 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal student.user_id, response.parsed_body.dig("user", "id")
     assert_equal student.parent_phone_e164, response.parsed_body.dig("profile", "parent_phone")
+    assert_equal student.center_name, response.parsed_body.dig("profile", "center_name")
     assert_empty response.parsed_body["linked_students"]
+  end
+
+  test "student can complete the required center name from profile" do
+    student = create_student
+    student.update_column(:center_name, nil)
+    token = session_token_for(student.user)
+
+    patch "/api/profile", params: {
+      profile: { center_name: "Downtown Center" }
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :success
+    assert_equal "Downtown Center", student.reload.center_name
+    assert response.parsed_body.dig("user", "profile_complete")
   end
 
   test "returns only students linked to the authenticated parent" do

@@ -22,6 +22,7 @@ class ApplicationController < ActionController::API
     return render_unauthorized unless @current_session && @current_user&.active?
 
     return render_account_unverified if account_verification_required?
+    return render_student_profile_incomplete if student_profile_completion_required?
 
     now = Time.current
     @current_session.update_column(:last_seen_at, now)
@@ -36,6 +37,18 @@ class ApplicationController < ActionController::API
   def render_account_unverified
     render json: {
       error: { code: "account_unverified", message: "Account verification is required" }
+    }, status: :forbidden
+  end
+
+  def student_profile_completion_required?
+    current_user.student? &&
+      current_user.student_profile.center_name.blank? &&
+      !%w[api/sessions api/profiles api/account_verifications].include?(controller_path)
+  end
+
+  def render_student_profile_incomplete
+    render json: {
+      error: { code: "student_profile_incomplete", message: "Student center name is required" }
     }, status: :forbidden
   end
 
@@ -84,6 +97,7 @@ class ApplicationController < ActionController::API
       phone: user.phone_e164,
       role: user.role,
       verified: user.phone_verified_at.present?,
+      profile_complete: !user.student? || user.student_profile.center_name.present?,
       permissions: assistant_permissions(user)
     }
   end

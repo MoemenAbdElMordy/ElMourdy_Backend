@@ -29,7 +29,7 @@ module Api
     private
 
     def profile_params
-      params.require(:profile).permit(:name, :governorate)
+      params.require(:profile).permit(:name, :governorate, :center_name)
     end
 
     def password_params
@@ -37,7 +37,11 @@ module Api
     end
 
     def update_student_profile
-      current_user.student_profile.update!(governorate: profile_params[:governorate]) if profile_params.key?(:governorate)
+      current_user.student_profile.update!(student_profile_params)
+    end
+
+    def student_profile_params
+      profile_params.slice(:governorate, :center_name)
     end
 
     def profile_payload
@@ -55,7 +59,8 @@ module Api
         {
           birth_date: profile.birth_date,
           parent_phone: profile.parent_phone_e164,
-          governorate: profile.governorate
+          governorate: profile.governorate,
+          center_name: profile.center_name
         }
       when "parent"
         { verified_phone: current_user.parent_profile.verified_parent_phone_e164 }
