@@ -11,10 +11,11 @@ module Documents
     }.freeze
     QUESTION_PATTERN = /\A\s*[\(\)\-\u2013]*\s*(?:\u0633(?:\u0624\u0627\u0644)?\s*)?[0-9\u0660-\u0669]+\s*[\.\-:\u060C\(\)\u0640\u2013]*\s*(.+)\z/
     CHOICE_LABELS = "\u0623\u0625\u0627ABCDEabcde\u0628\u062C\u062F\u0647"
-    CHOICE_PATTERN = /\A\s*([#{CHOICE_LABELS}])\s*[\.\-:\u060C\(\)\u0640\u2013]+\s*(.+)\z/
-    CHOICE_MARKER_PATTERN = /(?:\A|\s)([#{CHOICE_LABELS}])\s*[\.\-:\u060C\(\)\u0640\u2013]+\s*/
+    CHOICE_PATTERN = /\A\s*([#{CHOICE_LABELS}])\s*[\.\-:\u060C\(\)]\s*(.+)\z/
+    CHOICE_MARKER_PATTERN = /(?:\A|\s)([#{CHOICE_LABELS}])\s*[\.\-:\u060C\(\)]\s*/
     ANSWER_PATTERN = /\A\s*(?:\u0627\u0644\u0625\u062C\u0627\u0628\u0629\s*(?:\u0627\u0644\u0635\u062D\u064A\u062D\u0629)?|\u0627\u0644\u062C\u0648\u0627\u0628|answer)\s*[:\-]\s*(.+)\z/i
     EXPLANATION_PATTERN = /\A\s*(?:\u0627\u0644\u0634\u0631\u062D|\u0627\u0644\u062A\u0641\u0633\u064A\u0631|explanation)\s*[:\-]\s*(.+)\z/i
+    QUESTION_HINT_PATTERN = /(?:\u0645\u064a\u0632|\u0645\u06cc\u0632|\u0645\u0645\u0627\s+\u064a\u0644\u064a|\u0645\u0627\s+\u062a\u062d\u062a(?:\u0647|\u0629)?\s+\u062e\u0637|\u064a\u0639\u0631\u0628|\u0625\u0639\u0631\u0627\u0628|\u0635\u0648\u0628|\u0639\u0644\u0627\u0645\u0629|\u0623\u0639\u062f\s+\u0643\u062a\u0627\u0628\u0629|\u0643\u0644\u0645\u0629)/
 
     def initialize(upload)
       @upload = upload
@@ -72,6 +73,12 @@ module Documents
       rows = table.xpath("./w:tr", NAMESPACES).map do |row|
         row.xpath("./w:tc", NAMESPACES).map { |cell| text_of(cell) }.reject(&:blank?)
       end
+      table_choices = rows.flatten.flat_map { |cell| extract_choices(cell) }
+      if @current && table_choices.any?
+        append_choices(table_choices)
+        return
+      end
+
       rows.each_with_index do |cells, index|
         next if cells.size < 3
         next if index.zero? && cells.first.match?(/\u0627\u0644\u0633\u0624\u0627\u0644|question/i)
@@ -93,12 +100,18 @@ module Documents
     def parse_paragraph(text, questions)
       return if text.blank?
 
+      text = normalize_choice_separators(text)
       if (match = text.match(QUESTION_PATTERN))
         finalize_current(questions)
         body, choices = split_embedded_choices(match[1])
         @current = question_payload(body)
         append_choices(choices)
       elsif @current && (choices = extract_choices(text)).any?
+        append_choices(choices)
+      elsif question_like?(text) && (@current.nil? || @current[:choices].size >= 2)
+        finalize_current(questions)
+        body, choices = split_embedded_choices(text)
+        @current = question_payload(strip_question_label(body))
         append_choices(choices)
       elsif @current && (match = text.match(ANSWER_PATTERN))
         @current[:answer_hint] = match[1].strip
@@ -114,11 +127,20 @@ module Documents
       end
     end
 
+    def question_like?(text)
+      text = normalize_choice_separators(text)
+      return false if text.match?(CHOICE_PATTERN) || text.match?(ANSWER_PATTERN) || text.match?(EXPLANATION_PATTERN)
+      return false if text.length < 12
+
+      text.end_with?("\u061F", "?", ":") || text.match?(QUESTION_HINT_PATTERN)
+    end
+
     def question_payload(body)
       { body: body.strip, choices: [], choice_labels: [], correct_choice_index: nil, explanation: "", source: "paragraph" }
     end
 
     def split_embedded_choices(text)
+      text = normalize_choice_separators(text)
       marker = text.match(CHOICE_MARKER_PATTERN)
       return [ text.strip, [] ] unless marker
 
@@ -126,6 +148,7 @@ module Documents
     end
 
     def extract_choices(text)
+      text = normalize_choice_separators(text)
       markers = text.to_enum(:scan, CHOICE_MARKER_PATTERN).map { Regexp.last_match }
       markers.each_with_index.filter_map do |marker, index|
         body_end = markers[index + 1]&.begin(0) || text.length
@@ -170,7 +193,13 @@ module Documents
     end
 
     def strip_choice_label(text)
-      text.to_s.sub(CHOICE_PATTERN, "\\2").strip
+      normalize_choice_separators(text.to_s).sub(CHOICE_PATTERN, "\\2").strip
+    end
+
+    def normalize_choice_separators(text)
+      text.to_s
+        .tr("\u0640", "")
+        .gsub(/[ \t]*[\u2010\u2011\u2012\u2013\u2014\u2212-][ \t]*/, "-")
     end
   end
 end
