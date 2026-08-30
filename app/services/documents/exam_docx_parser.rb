@@ -1,3 +1,4 @@
+require "cgi"
 require "nokogiri"
 require "stringio"
 require "zip"
@@ -66,7 +67,13 @@ module Documents
     end
 
     def text_of(node)
-      node.xpath(".//w:t[not(ancestor::mc:Fallback)]", NAMESPACES).map(&:text).join.strip
+      node.xpath(".//w:r[not(ancestor::mc:Fallback)]", NAMESPACES).map do |run|
+        text = run.xpath(".//w:t", NAMESPACES).map(&:text).join
+        next if text.blank?
+
+        escaped_text = CGI.escapeHTML(text)
+        run.xpath("./w:rPr/w:u[not(@w:val='none')]", NAMESPACES).any? ? "<u>#{escaped_text}</u>" : escaped_text
+      end.join.strip
     end
 
     def parse_table(table, questions)

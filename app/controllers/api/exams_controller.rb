@@ -130,11 +130,20 @@ module Api
       ExamChoice.where(exam_question_id: exam.exam_questions.select(:id)).delete_all
       exam.exam_questions.destroy_all
       questions.each_with_index do |question_attributes, question_index|
-        question = exam.exam_questions.create!(question_attributes.except(:choices).merge(position: question_index + 1))
+        question_payload = question_attributes.except(:choices).to_h
+        question_payload["body"] = sanitized_rich_text(question_payload["body"])
+        question_payload["explanation"] = sanitized_rich_text(question_payload["explanation"])
+        question = exam.exam_questions.create!(question_payload.merge(position: question_index + 1))
         Array(question_attributes[:choices]).each_with_index do |choice_attributes, choice_index|
-          question.exam_choices.create!(choice_attributes.merge(position: choice_index + 1))
+          choice_payload = choice_attributes.to_h
+          choice_payload["body"] = sanitized_rich_text(choice_payload["body"])
+          question.exam_choices.create!(choice_payload.merge(position: choice_index + 1))
         end
       end
+    end
+
+    def sanitized_rich_text(value)
+      ActionController::Base.helpers.sanitize(value.to_s, tags: %w[u], attributes: [])
     end
 
     def ensure_publishable!(exam)
