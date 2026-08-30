@@ -156,7 +156,9 @@ module Api
         academic_year: enrollment&.academic_year&.name,
         academic_year_id: enrollment&.academic_year_id,
         created_at: user.created_at,
-        last_active_at: user.user_sessions.maximum(:last_seen_at)
+        last_active_at: user.user_sessions.maximum(:last_seen_at),
+        account_verified: user.phone_verified_at.present?,
+        verified_at: user.phone_verified_at
       }
       return payload unless detailed
 
@@ -164,16 +166,22 @@ module Api
         birth_date: profile.birth_date,
         parent_phone: profile.parent_phone_e164,
         devices_count: profile.device_registrations.active.count,
+        active_sessions_count: user.user_sessions.active.count,
+        total_sessions_count: user.user_sessions.count,
+        last_login_at: user.user_sessions.maximum(:started_at),
         devices: profile.device_registrations.recent.map do |device|
           {
             id: device.id, name: device.device_name, browser: device.browser, os: device.os,
             status: device.status, last_seen_at: device.last_seen_at
           }
         end,
-        attempts: profile.exam_attempts.includes(:exam).recent.limit(20).map do |attempt|
+        attempts: profile.exam_attempts.includes(:exam).recent.limit(100).map do |attempt|
           {
-            id: attempt.id, exam_title: attempt.exam.title, status: attempt.status,
-            percent: attempt.percent, result_status: attempt.result_status, submitted_at: attempt.submitted_at
+            id: attempt.id, exam_id: attempt.exam_id, exam_title: attempt.exam.title,
+            assessment_type: attempt.exam.assessment_type, attempt_number: attempt.attempt_number,
+            status: attempt.status, score_points: attempt.score_points, max_points: attempt.max_points,
+            percent: attempt.percent, result_status: attempt.result_status, started_at: attempt.started_at,
+            submitted_at: attempt.submitted_at
           }
         end,
         progress: {
@@ -181,8 +189,51 @@ module Api
           watched_lectures: profile.lecture_watch_events.distinct.count(:lecture_id),
           highest_score: profile.exam_attempts.submitted.maximum(:percent)&.to_f
         },
-        video_progress: video_progress(profile, enrollment)
+        video_progress: video_progress(profile, enrollment),
+        assessments: assessment_progress(profile, enrollment)
       )
+    end
+
+    def assessment_progress(profile, enrollment)
+      return [] unless enrollment
+
+      direct_ids = Exam.where(academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id).select(:id)
+      assigned_ids = ExamGradeAssignment.where(grade_id: enrollment.grade_id).select(:exam_id)
+      exams = Exam.published.where(academic_year_id: enrollment.academic_year_id)
+        .where(id: direct_ids).or(
+          Exam.published.where(academic_year_id: enrollment.academic_year_id, id: assigned_ids)
+        ).includes(:exam_questions, :branch, lesson: { chapter: :branch }, chapter: :branch).order(created_at: :desc)
+      attempts = profile.exam_attempts.where(exam_id: exams.map(&:id)).group_by(&:exam_id)
+
+      exams.map do |exam|
+        exam_attempts = attempts.fetch(exam.id, [])
+        submitted = exam_attempts.select(&:submitted?)
+        latest = exam_attempts.max_by(&:started_at)
+        {
+          id: exam.id,
+          title: exam.title,
+          assessment_type: exam.assessment_type,
+          status: if submitted.any? then "submitted" elsif exam_attempts.any? then "in_progress" else "not_started" end,
+          scope: assessment_scope(exam),
+          questions_count: exam.exam_questions.size,
+          max_attempts: exam.max_attempts,
+          attempts_count: exam_attempts.size,
+          submitted_attempts_count: submitted.size,
+          best_percent: submitted.filter_map { |attempt| attempt.percent&.to_f }.max,
+          latest_percent: latest&.percent&.to_f,
+          latest_result_status: latest&.result_status,
+          first_started_at: exam_attempts.map(&:started_at).compact.min,
+          last_activity_at: exam_attempts.map { |attempt| attempt.submitted_at || attempt.updated_at }.compact.max
+        }
+      end
+    end
+
+    def assessment_scope(exam)
+      return "Comprehensive" if exam.scope_comprehensive?
+      return [ exam.lesson.chapter.branch.title, exam.lesson.chapter.title, exam.lesson.title ].join(" - ") if exam.lesson
+      return [ exam.chapter.branch.title, exam.chapter.title ].join(" - ") if exam.chapter
+
+      exam.branch.title
     end
 
     def video_progress(profile, enrollment)

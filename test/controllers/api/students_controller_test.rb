@@ -69,6 +69,29 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     assert_not progress.second["watched"]
   end
 
+  test "returns complete account, homework, exam, and attempt reporting" do
+    student = enrolled_student(name: "Reported Student")
+    student.user.update!(email: "reported.student@example.test")
+    homework = create_assessment(title: "Assigned Homework", type: :homework)
+    exam = create_assessment(title: "Assigned Exam", type: :exam)
+    attempt = student.exam_attempts.create!(
+      exam: homework, attempt_number: 1, status: :submitted, started_at: 20.minutes.ago,
+      submitted_at: 10.minutes.ago, score_points: 1, max_points: 1, percent: 100, result_status: :passed
+    )
+
+    get "/api/students/#{student.user_id}", headers: authorization_header(@token)
+
+    assert_response :success
+    payload = response.parsed_body.fetch("student")
+    assert payload["account_verified"]
+    assert_equal 0, payload["active_sessions_count"]
+    assert_equal [ homework.id, exam.id ].sort, payload.fetch("assessments").pluck("id").sort
+    homework_report = payload.fetch("assessments").find { |item| item["id"] == homework.id }
+    assert_equal "submitted", homework_report["status"]
+    assert_equal 100.0, homework_report["best_percent"]
+    assert_equal "homework", payload.fetch("attempts").find { |item| item["id"] == attempt.id }["assessment_type"]
+  end
+
   test "changes enrollment and resets password while ending active sessions" do
     student = enrolled_student(name: "Transferred Student")
     next_year = AcademicYear.create!(
@@ -136,5 +159,17 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
 
   def authorization_header(token)
     { "Authorization" => "Bearer #{token}" }
+  end
+
+  def create_assessment(title:, type:)
+    exam = Exam.create!(
+      title:, assessment_type: type, scope_type: :comprehensive, academic_year: @year, grade: @grade,
+      duration_minutes: 30, max_attempts: 3, pass_percent: 50, risk_from_percent: 50,
+      risk_to_percent: 60, status: :published
+    )
+    question = exam.exam_questions.create!(body: "Question", points: 1, position: 1)
+    question.exam_choices.create!(body: "Correct", is_correct: true, position: 1)
+    question.exam_choices.create!(body: "Incorrect", is_correct: false, position: 2)
+    exam
   end
 end
