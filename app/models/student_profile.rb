@@ -6,6 +6,7 @@ class StudentProfile < ApplicationRecord
   has_many :parent_profiles, through: :student_parent_links
   has_many :student_enrollments, dependent: :restrict_with_error
   has_many :lesson_access_grants, dependent: :restrict_with_error
+  has_many :lecture_access_grants, dependent: :restrict_with_error
   has_many :exam_attempts, dependent: :restrict_with_error
   has_many :device_registrations, dependent: :restrict_with_error
   has_many :lecture_watch_events, dependent: :restrict_with_error

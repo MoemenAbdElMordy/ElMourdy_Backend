@@ -12,6 +12,10 @@ module Videos
       )
       return false unless eligible_lessons.exists?
       return true if lecture.is_free? || eligible_lessons.where(is_free: true).exists?
+      return true if user.student_profile.lecture_access_grants.currently_active.exists?(
+        lecture_id: lecture.id,
+        academic_year_id: enrollment.academic_year_id
+      )
 
       user.student_profile.lesson_access_grants.currently_active.exists?(
         lesson_id: eligible_lessons.select(:id),

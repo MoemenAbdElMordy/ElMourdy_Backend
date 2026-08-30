@@ -4,6 +4,7 @@ class ActivationCode < ApplicationRecord
   belongs_to :activation_code_batch
   belongs_to :redeemed_by_student_profile, class_name: "StudentProfile", optional: true
   has_one :lesson_access_grant, dependent: :restrict_with_error
+  has_one :lecture_access_grant, dependent: :restrict_with_error
 
   validates :code_digest, presence: true, uniqueness: true, length: { is: 64 }
   validate :redemption_state_is_consistent

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_000200) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -27,13 +27,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_000100) do
   end
 
   create_table "activation_code_batches", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
-    t.bigint "academic_year_id", null: false
+    t.bigint "academic_year_id"
     t.datetime "created_at", null: false
     t.bigint "created_by_user_id"
     t.datetime "deleted_at"
     t.date "expires_on", null: false
-    t.bigint "grade_id", null: false
-    t.bigint "lesson_id", null: false
+    t.bigint "grade_id"
+    t.bigint "lesson_id"
     t.string "name", null: false
     t.integer "quantity", null: false
     t.datetime "updated_at", null: false
@@ -223,8 +223,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_000100) do
     t.bigint "exam_id", null: false
     t.bigint "grade_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["exam_id"], name: "index_exam_grade_assignments_on_exam_id"
-    t.index ["grade_id"], name: "index_exam_grade_assignments_on_grade_id"
+    t.index ["exam_id"], name: "fk_rails_643d1506c0"
+    t.index ["grade_id"], name: "fk_rails_be3d251841"
   end
 
   create_table "exam_questions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -290,6 +290,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_000100) do
     t.index ["active", "level"], name: "index_grades_on_active_and_level"
     t.index ["level"], name: "index_grades_on_level", unique: true
     t.check_constraint "`level` between 1 and 3", name: "chk_grade_level"
+  end
+
+  create_table "lecture_access_grants", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.bigint "academic_year_id", null: false
+    t.bigint "activation_code_id", null: false
+    t.datetime "created_at", null: false
+    t.date "expires_on", null: false
+    t.bigint "lecture_id", null: false
+    t.integer "status", default: 0, null: false
+    t.bigint "student_profile_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["academic_year_id"], name: "index_lecture_access_grants_on_academic_year_id"
+    t.index ["activation_code_id"], name: "index_lecture_access_grants_on_activation_code_id", unique: true
+    t.index ["lecture_id"], name: "index_lecture_access_grants_on_lecture_id"
+    t.index ["student_profile_id", "academic_year_id", "status", "expires_on"], name: "idx_student_active_lecture_grants"
+    t.index ["student_profile_id", "lecture_id", "academic_year_id"], name: "idx_lecture_grant_unique", unique: true
+    t.check_constraint "`status` between 0 and 2", name: "chk_lecture_access_grants_status"
   end
 
   create_table "lecture_placements", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -735,6 +752,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_000100) do
   add_foreign_key "exams", "grades"
   add_foreign_key "exams", "lessons"
   add_foreign_key "exams", "users", column: "created_by_user_id", on_delete: :nullify
+  add_foreign_key "lecture_access_grants", "academic_years"
+  add_foreign_key "lecture_access_grants", "activation_codes"
+  add_foreign_key "lecture_access_grants", "lectures"
+  add_foreign_key "lecture_access_grants", "student_profiles"
   add_foreign_key "lecture_placements", "lectures"
   add_foreign_key "lecture_placements", "lessons"
   add_foreign_key "lecture_watch_events", "device_registrations"

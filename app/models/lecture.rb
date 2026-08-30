@@ -18,6 +18,7 @@ class Lecture < ApplicationRecord
   end
 
   has_many :lecture_watch_events, dependent: :restrict_with_error
+  has_many :lecture_access_grants, dependent: :restrict_with_error
 
   validates :title, presence: true
   validates :position, numericality: { only_integer: true, greater_than: 0 },

@@ -9,6 +9,7 @@ class AcademicYear < ApplicationRecord
   has_many :branches, dependent: :restrict_with_error
   has_many :exams, dependent: :restrict_with_error
   has_many :lesson_access_grants, dependent: :restrict_with_error
+  has_many :lecture_access_grants, dependent: :restrict_with_error
 
   validates :name, presence: true, uniqueness: true
   validates :starts_on, :ends_on, presence: true

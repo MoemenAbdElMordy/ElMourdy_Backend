@@ -56,8 +56,10 @@ module Documents
       def activation_codes(batch, codes)
         document = DocxBuilder.new(title: "Activation Code Batch")
         document.table(headers: [ "Field", "Value" ], rows: [
-          [ "Batch", batch.name ], [ "Lesson", batch.lesson.title ], [ "Grade", batch.grade.name ],
-          [ "Academic year", batch.academic_year.name ], [ "Expires on", batch.expires_on ], [ "Quantity", batch.quantity ]
+          [ "Batch", batch.name ], [ "Scope", batch.generic? ? "Any paid lecture" : batch.lesson.title ],
+          [ "Grade", batch.grade&.name || "Any eligible grade" ],
+          [ "Academic year", batch.academic_year&.name || "Student's active year" ],
+          [ "Expires on", batch.expires_on ], [ "Quantity", batch.quantity ]
         ])
         rows = codes.map { |code| [ code[:code], code[:status], code[:redeemed_by], code[:redeemed_at], batch.expires_on ] }
         document.heading("Codes", level: 2)

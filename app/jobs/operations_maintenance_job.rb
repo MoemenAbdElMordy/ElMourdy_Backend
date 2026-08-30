@@ -7,5 +7,9 @@ class OperationsMaintenanceJob < ApplicationJob
       status: LessonAccessGrant.statuses[:expired],
       updated_at: Time.current
     )
+    LectureAccessGrant.active.where(expires_on: ...Date.current).update_all(
+      status: LectureAccessGrant.statuses[:expired],
+      updated_at: Time.current
+    )
   end
 end

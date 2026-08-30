@@ -5,7 +5,12 @@ module Api
     def redeem
       return render_forbidden unless current_user.student?
 
-      grant = ActivationCodes::Redeem.call(raw_code: params.require(:code), student_profile: current_user.student_profile)
+      lecture = Lecture.find(params[:lecture_id]) if params[:lecture_id].present?
+      grant = ActivationCodes::Redeem.call(
+        raw_code: params.require(:code),
+        student_profile: current_user.student_profile,
+        lecture:
+      )
       render json: { access_grant: serialize_grant(grant) }, status: :created
     end
 
@@ -34,7 +39,17 @@ module Api
     private
 
     def serialize_grant(grant)
-      { id: grant.id, lesson_id: grant.lesson_id, lesson: grant.lesson.title, source: grant.source, expires_on: grant.expires_on, status: grant.status }
+      if grant.is_a?(LectureAccessGrant)
+        return {
+          id: grant.id, lecture_id: grant.lecture_id, lecture: grant.lecture.title,
+          expires_on: grant.expires_on, status: grant.status, access_type: "lecture"
+        }
+      end
+
+      {
+        id: grant.id, lesson_id: grant.lesson_id, lesson: grant.lesson.title, source: grant.source,
+        expires_on: grant.expires_on, status: grant.status, access_type: "lesson"
+      }
     end
   end
 end

@@ -33,6 +33,8 @@ module Api
 
       @accessible_lesson_ids = profile.lesson_access_grants.currently_active
         .where(academic_year: enrollment.academic_year).pluck(:lesson_id)
+      @accessible_lecture_ids = profile.lecture_access_grants.currently_active
+        .where(academic_year: enrollment.academic_year).pluck(:lecture_id)
       @watch_events_by_lecture = profile.lecture_watch_events.order(updated_at: :desc).each_with_object({}) do |event, events|
         events[event.lecture_id] ||= event
       end
@@ -81,7 +83,7 @@ module Api
       duration = lecture.duration_seconds.to_i.nonzero? || (asset&.duration_seconds).to_i
       content_payload(lecture).merge(
         is_free: lecture.is_free,
-        has_access: lesson_has_access || lecture.is_free,
+        has_access: lesson_has_access || lecture.is_free || @accessible_lecture_ids&.include?(lecture.id),
         description: lecture.description,
         attachment_name: lecture.attachment_name,
         attachment_url: lecture.attachment_url,

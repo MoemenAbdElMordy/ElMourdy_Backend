@@ -8,13 +8,13 @@ class Api::ActivationCodesControllerTest < ActionDispatch::IntegrationTest
 
     post "/api/activation_code_batches", params: {
       activation_code_batch: {
-        lesson_id: lesson.id, academic_year_id: year.id, grade_id: grade.id,
         name: "September Codes", quantity: 3, expires_on: Date.current + 30.days
       }
     }, headers: authorization_header(token), as: :json
 
     assert_response :created
     assert_equal 3, response.parsed_body.fetch("generated_codes").length
+    assert response.parsed_body.dig("batch", "generic")
     batch_id = response.parsed_body.dig("batch", "id")
     assert ActivationCode.where(activation_code_batch_id: batch_id).all? { |code| code.code_ciphertext.exclude?("ELM-") }
 
@@ -24,7 +24,7 @@ class Api::ActivationCodesControllerTest < ActionDispatch::IntegrationTest
 
     get "/api/activation_code_batches/#{batch_id}/export", headers: authorization_header(token)
     assert_response :success
-    assert_includes response.body, "code,status,lesson"
+    assert_includes response.body, "code,status,target"
     assert_includes response.body, "ELM-"
 
     get "/api/activation_code_batches/#{batch_id}/export.docx", headers: authorization_header(token)
@@ -33,6 +33,37 @@ class Api::ActivationCodesControllerTest < ActionDispatch::IntegrationTest
     Zip::File.open_buffer(response.body) do |archive|
       assert_includes archive.find_entry("word/document.xml").get_input_stream.read, "Activation Code Batch"
     end
+  end
+
+  test "student uses a generic code once to unlock the selected paid lecture" do
+    teacher = create_user(role: :teacher)
+    student = create_student
+    year, grade, _branch, _chapter, lesson = create_curriculum
+    lecture = Lecture.create!(lesson:, title: "Paid Lecture", position: 1, status: :published)
+    another_lecture = Lecture.create!(lesson:, title: "Another Lecture", position: 2, status: :published)
+    StudentEnrollment.create!(student_profile: student, academic_year: year, grade:, status: :active, enrolled_at: Time.current)
+    raw_code = ActivationCodes::GenerateBatch.call(
+      attributes: { name: "Generic Codes", quantity: 1, expires_on: Date.current + 30.days },
+      created_by_user: teacher
+    ).raw_codes.first
+    token = student_token(student)
+
+    post "/api/activation_codes/redeem", params: {
+      code: raw_code, lecture_id: lecture.id
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :created
+    assert_equal "lecture", response.parsed_body.dig("access_grant", "access_type")
+    assert_equal lecture.id, response.parsed_body.dig("access_grant", "lecture_id")
+    assert Videos::Access.allowed?(user: student.user, lecture:)
+    assert_not Videos::Access.allowed?(user: student.user, lecture: another_lecture)
+
+    post "/api/activation_codes/redeem", params: {
+      code: raw_code, lecture_id: another_lecture.id
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :unprocessable_entity
+    assert_not Videos::Access.allowed?(user: student.user, lecture: another_lecture)
   end
 
   test "student redeems a matching code and cannot reuse it" do
