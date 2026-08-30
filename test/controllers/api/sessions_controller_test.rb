@@ -88,6 +88,15 @@ class Api::SessionsControllerTest < ActionDispatch::IntegrationTest
     post api_account_verification_url, headers: authorization_header(token), as: :json
     assert_response :created
     old_verification_id = response.parsed_body.fetch("verification_id")
+    4.times do
+      student.user.otp_verifications.create!(
+        phone_e164: student.user.phone_e164,
+        purpose: :student_registration,
+        status: :expired,
+        code_digest: "0" * 64,
+        expires_at: 10.minutes.from_now
+      )
+    end
 
     patch email_api_account_verification_url, params: {
       account: { email: "Correct.Student@Example.test" }
@@ -99,6 +108,13 @@ class Api::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_not_equal old_verification_id, response.parsed_body.fetch("verification_id")
     assert_equal "c***@example.test", response.parsed_body.fetch("email_hint")
     assert_equal "correct.student@example.test", ActionMailer::Base.deliveries.last.to.first
+
+    patch email_api_account_verification_url, params: {
+      account: { email: "another.student@example.test" }
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "correct.student@example.test", student.user.reload.email
 
     patch email_api_account_verification_url, params: {
       account: { email: other_user.email }
