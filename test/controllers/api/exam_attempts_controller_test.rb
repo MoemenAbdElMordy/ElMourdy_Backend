@@ -73,6 +73,28 @@ class Api::ExamAttemptsControllerTest < ActionDispatch::IntegrationTest
     assert_nil response.parsed_body.dig("attempt", "questions", 0, "is_correct")
   end
 
+  test "student in an assigned secondary grade can start a multi-grade homework" do
+    homework = create_exam
+    homework.update!(assessment_type: :homework)
+    other_grade = Grade.find_or_create_by!(level: 3) { |grade| grade.name = "Third Secondary" }
+    homework.exam_grade_assignments.create!(grade: homework.grade)
+    homework.exam_grade_assignments.create!(grade: other_grade)
+    student = create_student
+    StudentEnrollment.create!(
+      student_profile: student,
+      academic_year: homework.academic_year,
+      grade: other_grade,
+      status: :active,
+      enrolled_at: Time.current
+    )
+    token = start_test_session(student.user).raw_token
+
+    post "/api/exams/#{homework.id}/attempts", headers: auth(token), as: :json
+
+    assert_response :created
+    assert_equal homework.id, response.parsed_body.dig("attempt", "exam_id")
+  end
+
   private
 
   def enrolled_student(exam)

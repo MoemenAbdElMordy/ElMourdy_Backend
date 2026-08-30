@@ -25,7 +25,8 @@ module Api
 
       exam = Exam.published.find(params[:exam_id])
       enrollment = current_user.student_profile.student_enrollments.active.find_by(
-        academic_year_id: exam.academic_year_id, grade_id: exam.grade_id
+        academic_year_id: exam.academic_year_id,
+        grade_id: exam_target_grade_ids(exam)
       )
       return render_forbidden unless enrollment
 
@@ -69,6 +70,11 @@ module Api
     end
 
     private
+
+    def exam_target_grade_ids(exam)
+      assigned_grade_ids = exam.exam_grade_assignments.pluck(:grade_id)
+      assigned_grade_ids.presence || [ exam.grade_id ]
+    end
 
     def attempts_for_current_user
       if current_user.student?
