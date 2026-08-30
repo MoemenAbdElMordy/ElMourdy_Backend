@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_27_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_000100) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -216,6 +216,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_120000) do
     t.datetime "updated_at", null: false
     t.index ["exam_question_id", "position"], name: "index_exam_choices_on_exam_question_id_and_position", unique: true
     t.check_constraint "`position` > 0", name: "chk_exam_choices_position"
+  end
+
+  create_table "exam_grade_assignments", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "exam_id", null: false
+    t.bigint "grade_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["exam_id"], name: "index_exam_grade_assignments_on_exam_id"
+    t.index ["grade_id"], name: "index_exam_grade_assignments_on_grade_id"
   end
 
   create_table "exam_questions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -717,6 +726,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_120000) do
   add_foreign_key "exam_attempts", "exams"
   add_foreign_key "exam_attempts", "student_profiles"
   add_foreign_key "exam_choices", "exam_questions"
+  add_foreign_key "exam_grade_assignments", "exams"
+  add_foreign_key "exam_grade_assignments", "grades"
   add_foreign_key "exam_questions", "exams"
   add_foreign_key "exams", "academic_years"
   add_foreign_key "exams", "branches"

@@ -6,7 +6,7 @@ module Api
     def index
       exams = if current_user.student?
         enrollment = current_user.student_profile.student_enrollments.active.order(enrolled_at: :desc).first
-        enrollment ? Exam.published.where(academic_year: enrollment.academic_year, grade: enrollment.grade) : Exam.none
+        enrollment ? student_visible_exams(enrollment) : Exam.none
       elsif current_user.parent?
         Exam.none
       else
@@ -33,9 +33,12 @@ module Api
 
     def create
       exam = Exam.transaction do
-        record = Exam.new(exam_attributes.except(:questions))
+        attributes = exam_attributes
+        record = Exam.new(attributes.except(:questions, :grade_ids))
+        record.grade_id = selected_grade_ids(attributes).first if record.assessment_type_homework?
         record.created_by_user = current_user
         record.save!
+        sync_grade_assignments!(record, selected_grade_ids(attributes))
         replace_questions!(record, exam_attributes[:questions])
         ensure_publishable!(record)
         record
@@ -50,7 +53,9 @@ module Api
         if attributes[:questions].present? && exam.exam_attempts.exists?
           raise ApplicationService::Error, "Questions cannot be changed after students start this exam"
         end
-        exam.update!(attributes.except(:questions))
+        exam.grade_id = selected_grade_ids(attributes).first if attributes[:assessment_type].to_s == "homework"
+        exam.update!(attributes.except(:questions, :grade_ids))
+        sync_grade_assignments!(exam, selected_grade_ids(attributes))
         replace_questions!(exam, attributes[:questions]) if attributes.key?(:questions)
         ensure_publishable!(exam)
         exam
@@ -70,9 +75,9 @@ module Api
       return authorize_management! unless current_user.student?
 
       enrollment = current_user.student_profile.student_enrollments.active.find_by(
-        academic_year_id: exam.academic_year_id, grade_id: exam.grade_id
+        academic_year_id: exam.academic_year_id
       )
-      render_forbidden unless exam.published? && enrollment
+      render_forbidden unless exam.published? && enrollment && exam_visible_for_grade?(exam, enrollment.grade_id)
     end
 
     def exam_attributes
@@ -81,8 +86,42 @@ module Api
         :duration_minutes, :max_attempts, :pass_percent, :risk_from_percent, :risk_to_percent,
         :attempt_form_mode, :show_result_immediately, :shuffle_questions, :shuffle_choices, :status,
         :assessment_type, :show_answers_after_submission, :correct_after_each_answer,
+        grade_ids: [],
         questions: [ :body, :explanation, :points, { choices: %i[body is_correct] } ]
       )
+    end
+
+    def student_visible_exams(enrollment)
+      Exam.published
+        .left_outer_joins(:exam_grade_assignments)
+        .where(academic_year: enrollment.academic_year)
+        .where("exams.grade_id = :grade_id OR exam_grade_assignments.grade_id = :grade_id", grade_id: enrollment.grade_id)
+        .distinct
+    end
+
+    def exam_visible_for_grade?(exam, grade_id)
+      exam.grade_id == grade_id || exam.exam_grade_assignments.exists?(grade_id:)
+    end
+
+    def selected_grade_ids(attributes)
+      ids = Array(attributes[:grade_ids]).reject(&:blank?).map(&:to_i)
+      ids = [ attributes[:grade_id].to_i ] if ids.empty? && attributes[:grade_id].present?
+      ids.uniq
+    end
+
+    def sync_grade_assignments!(exam, grade_ids)
+      unless exam.assessment_type_homework?
+        exam.exam_grade_assignments.delete_all
+        return
+      end
+
+      valid_grade_ids = Grade.where(id: grade_ids).pluck(:id)
+      raise ApplicationService::Error, "At least one grade is required for a homework" if valid_grade_ids.empty?
+
+      exam.exam_grade_assignments.where.not(grade_id: valid_grade_ids).delete_all
+      valid_grade_ids.each do |grade_id|
+        exam.exam_grade_assignments.find_or_create_by!(grade_id:)
+      end
     end
 
     def replace_questions!(exam, questions)
@@ -109,10 +148,11 @@ module Api
     end
 
     def serialize_exam(exam, include_questions: false, reveal_answers: false)
+      grade_ids = assigned_grade_ids_for(exam)
       payload = {
         id: exam.id, title: exam.title, scope_type: exam.scope_type, lesson_id: exam.lesson_id,
         chapter_id: exam.chapter_id, branch_id: exam.branch_id, academic_year_id: exam.academic_year_id,
-        grade_id: exam.grade_id, duration_minutes: exam.duration_minutes, max_attempts: exam.max_attempts,
+        grade_id: exam.grade_id, grade_ids:, duration_minutes: exam.duration_minutes, max_attempts: exam.max_attempts,
         pass_percent: exam.pass_percent, risk_from_percent: exam.risk_from_percent,
         risk_to_percent: exam.risk_to_percent, attempt_form_mode: exam.attempt_form_mode,
         assessment_type: exam.assessment_type, show_result_immediately: exam.show_result_immediately,
@@ -130,6 +170,11 @@ module Api
         }
       end if include_questions
       payload
+    end
+
+    def assigned_grade_ids_for(exam)
+      ids = exam.exam_grade_assignments.loaded? ? exam.exam_grade_assignments.map(&:grade_id) : exam.exam_grade_assignments.pluck(:grade_id)
+      ids.presence || [ exam.grade_id ]
     end
   end
 end

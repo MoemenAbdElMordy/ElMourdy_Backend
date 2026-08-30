@@ -11,6 +11,8 @@ class Exam < ApplicationRecord
   belongs_to :academic_year
   belongs_to :grade
   belongs_to :created_by_user, class_name: "User", optional: true
+  has_many :exam_grade_assignments, dependent: :destroy
+  has_many :assigned_grades, through: :exam_grade_assignments, source: :grade
   has_many :exam_questions, -> { order(:position) }, dependent: :restrict_with_error
   has_many :exam_attempts, dependent: :restrict_with_error
   has_many :required_by_lessons, class_name: "Lesson", foreign_key: :required_exam_id,
