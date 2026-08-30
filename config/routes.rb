@@ -4,7 +4,9 @@ Rails.application.routes.draw do
 
   namespace :api do
     resource :session, only: %i[create show destroy]
-    resource :account_verification, only: %i[create update]
+    resource :account_verification, only: %i[create update] do
+      patch :email
+    end
     resources :otp_verifications, only: :create do
       post :verify, on: :member
     end

@@ -78,6 +78,36 @@ class Api::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "allows an unverified student to correct the email and receive a replacement code" do
+    student = create_student
+    student.user.update!(email: "wrong.student@example.test", phone_verified_at: nil)
+    other_user = create_user(role: :parent)
+    other_user.update!(email: "used@example.test")
+    token = start_test_session(student.user).raw_token
+
+    post api_account_verification_url, headers: authorization_header(token), as: :json
+    assert_response :created
+    old_verification_id = response.parsed_body.fetch("verification_id")
+
+    patch email_api_account_verification_url, params: {
+      account: { email: "Correct.Student@Example.test" }
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :success
+    assert_equal "correct.student@example.test", student.user.reload.email
+    assert_equal "expired", student.user.otp_verifications.find(old_verification_id).status
+    assert_not_equal old_verification_id, response.parsed_body.fetch("verification_id")
+    assert_equal "c***@example.test", response.parsed_body.fetch("email_hint")
+    assert_equal "correct.student@example.test", ActionMailer::Base.deliveries.last.to.first
+
+    patch email_api_account_verification_url, params: {
+      account: { email: other_user.email }
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "correct.student@example.test", student.user.reload.email
+  end
+
   test "allows a student with missing center name to log in but blocks platform data until profile completion" do
     student = create_student
     student.update_column(:center_name, nil)

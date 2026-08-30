@@ -16,10 +16,29 @@ module Api
       render json: { user: serialize_user(current_user.reload) }
     end
 
+    def email
+      raise ApplicationService::Error, "Account is already verified" if current_user.phone_verified_at.present?
+
+      result = User.transaction do
+        current_user.update!(email: email_params[:email].to_s.strip.downcase)
+        EmailVerifications::Request.call(
+          user: current_user,
+          purpose: registration_purpose,
+          skip_resend_delay: true
+        )
+      end
+
+      render json: verification_payload(result)
+    end
+
     private
 
     def verification_params
       params.require(:verification).permit(:verification_id, :code)
+    end
+
+    def email_params
+      params.require(:account).permit(:email)
     end
 
     def registration_purpose

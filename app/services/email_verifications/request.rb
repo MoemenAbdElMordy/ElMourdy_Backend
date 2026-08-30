@@ -6,14 +6,15 @@ module EmailVerifications
     RESEND_DELAY = 1.minute
     HOURLY_LIMIT = 5
 
-    def self.call(user:, purpose:, at: Time.current)
-      new(user:, purpose:, at:).call
+    def self.call(user:, purpose:, at: Time.current, skip_resend_delay: false)
+      new(user:, purpose:, at:, skip_resend_delay:).call
     end
 
-    def initialize(user:, purpose:, at:)
+    def initialize(user:, purpose:, at:, skip_resend_delay:)
       @user = user
       @purpose = purpose
       @at = at
+      @skip_resend_delay = skip_resend_delay
     end
 
     def call
@@ -32,7 +33,9 @@ module EmailVerifications
 
     def enforce_rate_limits!
       scope = @user.otp_verifications.where(purpose: @purpose)
-      raise Error, "Please wait before requesting another code" if scope.where(created_at: (@at - RESEND_DELAY)..).exists?
+      if !@skip_resend_delay && scope.where(created_at: (@at - RESEND_DELAY)..).exists?
+        raise Error, "Please wait before requesting another code"
+      end
       raise Error, "Too many verification codes requested" if scope.where(created_at: (@at - 1.hour)..).count >= HOURLY_LIMIT
     end
 
