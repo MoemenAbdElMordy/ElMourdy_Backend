@@ -4,18 +4,17 @@ module EmailVerifications
 
     CODE_TTL = 10.minutes
     RESEND_DELAY = 1.minute
-    HOURLY_LIMIT = 5
+    HOURLY_LIMIT = 15
 
-    def self.call(user:, purpose:, at: Time.current, skip_resend_delay: false, hourly_limit_bonus: 0)
-      new(user:, purpose:, at:, skip_resend_delay:, hourly_limit_bonus:).call
+    def self.call(user:, purpose:, at: Time.current, skip_resend_delay: false)
+      new(user:, purpose:, at:, skip_resend_delay:).call
     end
 
-    def initialize(user:, purpose:, at:, skip_resend_delay:, hourly_limit_bonus:)
+    def initialize(user:, purpose:, at:, skip_resend_delay:)
       @user = user
       @purpose = purpose
       @at = at
       @skip_resend_delay = skip_resend_delay
-      @hourly_limit_bonus = hourly_limit_bonus
     end
 
     def call
@@ -37,8 +36,7 @@ module EmailVerifications
       if !@skip_resend_delay && scope.where(created_at: (@at - RESEND_DELAY)..).exists?
         raise Error, "Please wait before requesting another code"
       end
-      hourly_limit = HOURLY_LIMIT + @hourly_limit_bonus
-      raise Error, "Too many verification codes requested" if scope.where(created_at: (@at - 1.hour)..).count >= hourly_limit
+      raise Error, "Too many verification codes requested" if scope.where(created_at: (@at - 1.hour)..).count >= HOURLY_LIMIT
     end
 
     def create_verification(code, client_token)

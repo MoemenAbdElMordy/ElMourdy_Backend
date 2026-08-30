@@ -88,7 +88,7 @@ class Api::SessionsControllerTest < ActionDispatch::IntegrationTest
     post api_account_verification_url, headers: authorization_header(token), as: :json
     assert_response :created
     old_verification_id = response.parsed_body.fetch("verification_id")
-    4.times do
+    13.times do
       student.user.otp_verifications.create!(
         phone_e164: student.user.phone_e164,
         purpose: :student_registration,

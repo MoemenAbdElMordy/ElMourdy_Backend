@@ -24,8 +24,7 @@ module Api
         EmailVerifications::Request.call(
           user: current_user,
           purpose: registration_purpose,
-          skip_resend_delay: true,
-          hourly_limit_bonus: 1
+          skip_resend_delay: true
         )
       end
 
