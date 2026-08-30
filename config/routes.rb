@@ -18,6 +18,7 @@ Rails.application.routes.draw do
     post "registrations/:id/complete", to: "registrations#complete"
     resources :password_resets, only: %i[create update] do
       post :status, on: :member
+      post :verify, on: :member
     end
     resource :profile, only: %i[show update] do
       patch :password

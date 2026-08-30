@@ -1,15 +1,21 @@
 module Api
   class PasswordResetsController < ApplicationController
     def create
-      phone = PhoneNumbers::Normalize.call(create_params[:phone])
-      user = User.available_for_login.find_by(phone_e164: phone)
-      result = WhatsappVerifications::Request.call(
-        phone:,
-        purpose: :password_reset,
-        user:
-      )
+      email = create_params[:email].to_s.strip.downcase
+      user = User.available_for_login.find_by("LOWER(email) = ?", email)
+      raise ApplicationService::Error, "No active account uses this email address" unless user
+
+      result = EmailVerifications::Request.call(user:, purpose: :password_reset)
 
       render json: verification_payload(result), status: :created
+    end
+
+    def verify
+      verification = password_reset_verification
+      validate_client_token!(verification)
+      OtpVerifications::Verify.call(verification:, code: verify_params[:code])
+
+      render json: { status: verification.reload.status, expires_at: verification.expires_at }
     end
 
     def status
@@ -27,7 +33,7 @@ module Api
       OtpVerification.transaction do
         verification.lock!
         expire_verification!(verification)
-        raise ApplicationService::Error, "Phone verification is not complete" unless verification.verified?
+        raise ApplicationService::Error, "Email verification is not complete" unless verification.verified?
 
         user = verification.user
         raise ApplicationService::Error, "Password reset could not be completed" unless user&.active?
@@ -50,7 +56,11 @@ module Api
     private
 
     def create_params
-      params.require(:password_reset).permit(:phone)
+      params.require(:password_reset).permit(:email)
+    end
+
+    def verify_params
+      params.require(:password_reset).permit(:client_token, :code)
     end
 
     def client_params
@@ -84,9 +94,8 @@ module Api
       {
         password_reset_id: result.verification.id,
         expires_at: result.verification.expires_at,
-        resend_after_seconds: WhatsappVerifications::Request::RESEND_DELAY.to_i,
-        verification_method: "whatsapp_inbound",
-        whatsapp_url: result.whatsapp_url,
+        resend_after_seconds: EmailVerifications::Request::RESEND_DELAY.to_i,
+        verification_method: "email_code",
         client_token: result.client_token
       }
     end

@@ -51,14 +51,15 @@ module EmailVerifications
     end
 
     def deliver(verification, code)
-      VerificationMailer.with(
+      mailer = VerificationMailer.with(
         user: @user,
         code:,
         expires_in_minutes: (CODE_TTL / 1.minute).to_i
-      ).registration_code.deliver_now
+      )
+      (@purpose.to_s == "password_reset" ? mailer.password_reset_code : mailer.registration_code).deliver_now
     rescue StandardError => error
       verification.update!(status: :failed)
-      Rails.logger.error("Registration email delivery failed: #{error.class}")
+      Rails.logger.error("Verification email delivery failed: #{error.class}")
       raise Error, "Verification email could not be delivered"
     end
   end
