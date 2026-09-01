@@ -47,6 +47,19 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     assert student.user.reload.suspended?
   end
 
+  test "searches students by email address" do
+    matching = enrolled_student(name: "Email Match")
+    matching.user.update!(email: "unique.student.search@example.test")
+    other = enrolled_student(name: "Other Student")
+    other.user.update!(email: "other.student@example.test")
+
+    get "/api/students", params: { query: "student.search@" }, headers: authorization_header(@token)
+
+    assert_response :success
+    assert_equal [ matching.user_id ], response.parsed_body.fetch("students").pluck("id")
+    assert_equal "unique.student.search@example.test", response.parsed_body.dig("students", 0, "email")
+  end
+
   test "returns watched and unwatched video progress for the enrolled curriculum" do
     student = enrolled_student(name: "Progress Student")
     branch = Branch.create!(academic_year: @year, grade: @grade, title: "Grammar", position: 1, status: :published)

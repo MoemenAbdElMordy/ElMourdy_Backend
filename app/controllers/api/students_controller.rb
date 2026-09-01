@@ -11,7 +11,7 @@ module Api
     def index
       users = User.student.includes(student_profile: { student_enrollments: %i[grade academic_year] })
       users = users.where(status: params[:status]) if User.statuses.key?(params[:status])
-      users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query", query: "%#{params[:query]}%") if params[:query].present?
+      users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query OR users.email LIKE :query", query: "%#{params[:query]}%") if params[:query].present?
       users = users.joins(student_profile: :student_enrollments).where(student_enrollments: { grade_id: params[:grade_id] }).distinct if params[:grade_id].present?
 
       users, pagination = paginate(users.order(created_at: :desc))
@@ -113,7 +113,7 @@ module Api
     def filtered_students
       users = User.student
       users = users.where(status: params[:status]) if User.statuses.key?(params[:status])
-      users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query", query: "%#{params[:query]}%") if params[:query].present?
+      users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query OR users.email LIKE :query", query: "%#{params[:query]}%") if params[:query].present?
       users = users.joins(student_profile: :student_enrollments).where(student_enrollments: { grade_id: params[:grade_id] }).distinct if params[:grade_id].present?
       users
     end
