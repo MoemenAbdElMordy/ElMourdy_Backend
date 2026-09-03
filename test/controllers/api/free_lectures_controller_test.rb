@@ -33,5 +33,39 @@ class Api::FreeLecturesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ playable.id ], lectures.pluck("id")
     assert_equal "Free Lecture", lectures.first.fetch("title")
     assert_equal [ "480p" ], lectures.first.fetch("available_qualities")
+    assert_equal false, lectures.first.fetch("has_thumbnail")
+    assert_equal 1, lectures.first.dig("grade", "level")
+  end
+
+  test "guest can load a thumbnail only for a playable free lecture" do
+    _year, _grade, _branch, _chapter, lesson = create_curriculum
+    lesson.update!(is_free: true)
+    lecture = lesson.lectures.create!(
+      title: "Free Lecture With Thumbnail",
+      position: 1,
+      status: :published,
+      thumbnail_key: "thumbnails/lectures/free-cover.webp"
+    )
+    asset = lecture.video_assets.create!(
+      processing_status: :ready,
+      original_file_key: "videos/free/original/source.mp4",
+      available_qualities: [ "480p" ]
+    )
+    asset.video_variants.create!(
+      quality: "480p",
+      status: :ready,
+      file_key: "videos/free/hls/480p/index.m3u8",
+      size_bytes: 1024
+    )
+
+    storage = Videos::Storage.build
+    storage.put(lecture.thumbnail_key, StringIO.new("thumbnail-data"))
+    get "/api/free_lectures/#{lecture.id}/thumbnail"
+
+    assert_response :success
+    assert_equal "thumbnail-data", response.body
+    assert_match "public", response.headers.fetch("Cache-Control")
+  ensure
+    storage&.delete(lecture&.thumbnail_key)
   end
 end

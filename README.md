@@ -228,6 +228,8 @@ Production readiness requires passing tests, zero RuboCop offenses, and review o
 
 ## Production Notes
 
+The API sends `X-Robots-Tag: noindex, nofollow` and publishes a restrictive `robots.txt`, keeping operational and account endpoints out of search results. Published free lectures expose a dedicated public, cacheable thumbnail endpoint so the frontend can render a visual discovery grid without exposing protected video delivery URLs.
+
 - Serve Rails and background jobs as separate supervised processes
 - Use a managed or regularly backed-up MySQL instance
 - Keep R2 objects private and deliver them only through signed playback URLs

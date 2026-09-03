@@ -48,7 +48,9 @@ Rails.application.routes.draw do
       get :export
     end
     resources :audit_logs, only: :index
-    resources :free_lectures, only: :index
+    resources :free_lectures, only: :index do
+      get :thumbnail, on: :member
+    end
     get "curriculum", to: "curriculum#show"
     resources :curriculum_locations, only: :index
     resources :branches, only: %i[create update destroy] do

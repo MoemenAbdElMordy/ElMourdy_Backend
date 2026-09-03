@@ -30,5 +30,6 @@ module ElMourdyBackend
     config.api_only = true
     config.time_zone = "Cairo"
     config.active_record.default_timezone = :utc
+    config.action_dispatch.default_headers.merge!("X-Robots-Tag" => "noindex, nofollow")
   end
 end
