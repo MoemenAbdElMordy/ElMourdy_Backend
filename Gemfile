@@ -51,6 +51,6 @@ group :development, :test do
   gem "rubocop-rails-omakase", require: false
 end
 
-gem "rubyzip", "~> 3.2"
+gem "rubyzip", "~> 3.6"
 
 gem "pdf-reader", "~> 2.15"
