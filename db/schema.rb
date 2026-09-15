@@ -297,7 +297,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_000100) do
     t.bigint "activation_code_id", null: false
     t.datetime "created_at", null: false
     t.date "expires_on", null: false
-    t.bigint "lecture_id"
+    t.bigint "lecture_id", null: false
     t.integer "status", default: 0, null: false
     t.bigint "student_profile_id", null: false
     t.datetime "updated_at", null: false
@@ -695,7 +695,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_000100) do
     t.datetime "created_at", null: false
     t.bigint "created_by_user_id"
     t.integer "duration_seconds"
-    t.bigint "lecture_id", null: false
+    t.bigint "lecture_id"
     t.string "original_file_key", null: false
     t.integer "processing_status", default: 0, null: false
     t.datetime "updated_at", null: false
