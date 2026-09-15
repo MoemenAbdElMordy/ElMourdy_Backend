@@ -2,7 +2,9 @@ class VideoAsset < ApplicationRecord
   include CatalogCacheable
   enum :processing_status, { uploaded: 0, processing: 1, ready: 2, failed: 3 }, validate: true
 
-  belongs_to :lecture
+  # A processed video remains in the reusable video library when its original
+  # lecture is deleted. It can be attached to another lecture later.
+  belongs_to :lecture, optional: true
   belongs_to :created_by_user, class_name: "User", optional: true
   has_many :video_variants, dependent: :destroy
   has_many :selected_by_lectures, class_name: "Lecture", foreign_key: :selected_video_asset_id,

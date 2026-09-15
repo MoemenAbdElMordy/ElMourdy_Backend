@@ -111,7 +111,7 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_nil other_lecture.reload.selected_video_asset_id
   end
 
-  test "teacher deletes a lecture with its watch history and unshared stored videos" do
+  test "teacher deletes a lecture with its watch history but preserves its stored videos" do
     student = create_student
     asset = ready_asset
     prefix = File.dirname(File.dirname(asset.original_file_key))
@@ -122,9 +122,10 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :no_content
     assert_not Lecture.exists?(@lecture.id)
-    assert_not VideoAsset.exists?(asset.id)
+    assert VideoAsset.exists?(asset.id)
+    assert_nil asset.reload.lecture_id
     assert_not LectureWatchEvent.where(lecture_id: @lecture.id).exists?
-    assert_not Videos::Storage.build.exist?("#{prefix}/hls/720p/index.m3u8")
+    assert Videos::Storage.build.exist?("#{prefix}/hls/720p/index.m3u8")
   end
 
   test "deleting a lecture preserves a video reused by another lecture" do

@@ -37,7 +37,7 @@ module Api
     def serialize(asset)
       references = asset.selected_by_lectures
       asset.as_json(only: %i[id lecture_id processing_status duration_seconds available_qualities created_at]).merge(
-        lecture_title: asset.lecture.title,
+        lecture_title: asset.lecture&.title,
         storage_size_bytes: asset.video_variants.sum { |variant| variant.size_bytes.to_i },
         used_by_lectures_count: references.size,
         can_delete: true,
