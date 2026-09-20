@@ -7,6 +7,7 @@ class Lecture < ApplicationRecord
 
   belongs_to :lesson
   has_many :lecture_placements, dependent: :destroy
+  has_many :curriculum_nodes, dependent: :restrict_with_error
   has_many :additional_lessons, through: :lecture_placements, source: :lesson
   has_many :video_assets, dependent: :restrict_with_error
 

@@ -4,6 +4,7 @@ module Curriculum
       thumbnail_key = lecture.thumbnail_key
 
       Lecture.transaction do
+        CurriculumNode.where(lecture:).delete_all
         lecture.update_column(:selected_video_asset_id, nil) if lecture.selected_video_asset_id?
         lecture.video_assets.find_each do |asset|
           replacement_lecture = asset.selected_by_lectures.where.not(id: lecture.id).first

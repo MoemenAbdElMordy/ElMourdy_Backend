@@ -5,6 +5,7 @@ class Branch < ApplicationRecord
   belongs_to :academic_year
   belongs_to :grade
   has_many :chapters, dependent: :restrict_with_error
+  has_many :curriculum_nodes, dependent: :restrict_with_error
   has_many :exams, dependent: :restrict_with_error
 
   validates :title, presence: true

@@ -57,7 +57,30 @@ module Api
     def serialize_branch(branch, visible_only:)
       chapters = branch.chapters.ordered
       chapters = chapters.visible if visible_only
-      content_payload(branch).merge(chapters: chapters.map { |chapter| serialize_chapter(chapter, visible_only:) })
+      payload = content_payload(branch).merge(chapters: chapters.map { |chapter| serialize_chapter(chapter, visible_only:) })
+      nodes = serialize_nodes(branch, nil, visible_only:)
+      payload.merge(nodes:)
+    end
+
+    def serialize_nodes(branch, parent_id = nil, visible_only: false)
+      CurriculumNode.where(branch:, parent_id:).ordered.map do |node|
+        base = {
+          id: node.id, branch_id: node.branch_id, parent_id: node.parent_id,
+          kind: node.kind, title: node.kind == "lecture" ? node.lecture.title : node.title,
+          position: node.position, legacy_chapter_id: node.legacy_chapter_id,
+          legacy_lesson_id: node.legacy_lesson_id
+        }
+        if node.kind == "folder"
+          children = serialize_nodes(branch, node.id, visible_only:)
+          visible_only && children.empty? ? nil : base.merge(children:)
+        else
+          lecture = node.lecture
+          next if visible_only && !published_now?(lecture)
+
+          lesson_has_access = !visible_only || lecture.lesson.is_free || @accessible_lesson_ids.include?(lecture.lesson_id)
+          base.merge(lecture_id: node.lecture_id, lecture: serialize_lecture(lecture, lesson_has_access:))
+        end
+      end.compact
     end
 
     def serialize_chapter(chapter, visible_only:)
@@ -103,6 +126,10 @@ module Api
 
     def content_payload(record)
       { id: record.id, title: record.title, position: record.position, status: record.status, publish_at: record.try(:publish_at) }
+    end
+
+    def published_now?(record)
+      record.published? && (!record.respond_to?(:publish_at) || record.publish_at.nil? || record.publish_at <= Time.current)
     end
 
     def empty_tree

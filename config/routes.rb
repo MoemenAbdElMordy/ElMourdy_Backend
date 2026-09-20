@@ -53,6 +53,11 @@ Rails.application.routes.draw do
     end
     get "curriculum", to: "curriculum#show"
     resources :curriculum_locations, only: :index
+    resources :curriculum_nodes, only: %i[create update destroy] do
+      post :backfill, on: :collection
+      patch :reorder, on: :collection
+      patch :move, on: :member
+    end
     resources :branches, only: %i[create update destroy] do
       patch :reorder, on: :collection
     end
