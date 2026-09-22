@@ -57,6 +57,7 @@ module Api
     def serialize_branch(branch, visible_only:)
       chapters = branch.chapters.ordered
       chapters = chapters.visible if visible_only
+      chapters = chapters.reject { |chapter| Curriculum::LegacyAnchor.internal_chapter?(chapter) }
       payload = content_payload(branch).merge(chapters: chapters.map { |chapter| serialize_chapter(chapter, visible_only:) })
       nodes = serialize_nodes(branch, nil, visible_only:)
       payload.merge(nodes:)
@@ -71,6 +72,10 @@ module Api
           legacy_lesson_id: node.legacy_lesson_id
         }
         if node.kind == "folder"
+          if visible_only
+            next if node.legacy_chapter && !published_now?(node.legacy_chapter)
+            next if node.legacy_lesson && !published_now?(node.legacy_lesson)
+          end
           children = serialize_nodes(branch, node.id, visible_only:)
           visible_only && children.empty? ? nil : base.merge(children:)
         else

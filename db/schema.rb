@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_15_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_20_000000) do
   create_table "academic_years", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "copied_from_year_id"
     t.datetime "created_at", null: false
@@ -147,6 +147,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_000100) do
     t.index ["branch_id", "status", "position"], name: "index_chapters_on_branch_id_and_status_and_position"
     t.check_constraint "`position` > 0", name: "chk_chapters_position"
     t.check_constraint "`status` between 0 and 3", name: "chk_chapters_status"
+  end
+
+  create_table "curriculum_nodes", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.bigint "branch_id", null: false
+    t.datetime "created_at", null: false
+    t.string "kind", default: "folder", null: false
+    t.bigint "lecture_id"
+    t.bigint "legacy_chapter_id"
+    t.bigint "legacy_lesson_id"
+    t.bigint "parent_id"
+    t.integer "position", null: false
+    t.string "request_key"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id", "parent_id", "position"], name: "idx_curriculum_node_siblings"
+    t.index ["branch_id", "request_key"], name: "idx_curriculum_node_request", unique: true
+    t.index ["lecture_id"], name: "index_curriculum_nodes_on_lecture_id"
+    t.index ["legacy_chapter_id"], name: "idx_curriculum_node_legacy_chapter", unique: true
+    t.index ["legacy_lesson_id"], name: "idx_curriculum_node_legacy_lesson", unique: true
+    t.index ["parent_id", "lecture_id"], name: "idx_curriculum_node_lecture_placement", unique: true
   end
 
   create_table "device_registrations", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -736,6 +756,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_000100) do
   add_foreign_key "branches", "academic_years"
   add_foreign_key "branches", "grades"
   add_foreign_key "chapters", "branches"
+  add_foreign_key "curriculum_nodes", "branches"
+  add_foreign_key "curriculum_nodes", "chapters", column: "legacy_chapter_id"
+  add_foreign_key "curriculum_nodes", "curriculum_nodes", column: "parent_id"
+  add_foreign_key "curriculum_nodes", "lectures"
+  add_foreign_key "curriculum_nodes", "lessons", column: "legacy_lesson_id"
   add_foreign_key "device_registrations", "student_profiles"
   add_foreign_key "exam_answers", "exam_attempts"
   add_foreign_key "exam_answers", "exam_choices", column: "selected_choice_id"

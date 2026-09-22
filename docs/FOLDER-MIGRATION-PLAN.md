@@ -5,8 +5,8 @@ tested in isolation; no production migration or deployment has run.
 
 ## Confirmed defect
 
-The current frontend `openDirectLectureEditor` creates a chapter named
-`محتوى عام` and a lesson named `محاضرات المادة` before the lecture dialog is
+The current frontend `openDirectLectureEditor` creates a generic chapter and
+lesson before the lecture dialog is
 saved. Cancelling can therefore leave real records behind. The fixed
 Branch → Chapter → Lesson → Lecture schema is also leaking into the UI.
 

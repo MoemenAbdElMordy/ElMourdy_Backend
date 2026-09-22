@@ -32,15 +32,26 @@ module Curriculum
       end
     end
 
-    def move(node_id:, parent_id: nil)
+    def move(node_id:, parent_id: nil, before_id: nil)
       @branch.with_lock do
         node = nodes.find(node_id)
         parent = folder(parent_id)
-        return node if node.parent_id == parent&.id
+        before = before_id.present? ? nodes.find(before_id) : nil
+        if before && (before.id == node.id || before.parent_id != parent&.id)
+          raise Error, "The destination must be a sibling in the selected folder"
+        end
+        return node if before.nil? && node.parent_id == parent&.id
 
         old_parent = node.parent_id
         node.update!(parent:, position: siblings(parent&.id).maximum(:position).to_i + 1)
         compact(old_parent)
+        if before
+          ordered = siblings(parent&.id).where.not(id: node.id).to_a
+          destination = ordered.index { |item| item.id == before.id }
+          raise Error, "The destination no longer exists" unless destination
+          ordered.insert(destination, node)
+          ordered.each_with_index { |item, index| item.update!(position: index + 1) }
+        end
         node
       end
     end

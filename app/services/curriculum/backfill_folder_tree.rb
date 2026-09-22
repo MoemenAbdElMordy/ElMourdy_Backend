@@ -5,6 +5,7 @@ module Curriculum
     def self.call(branch:)
       branch.with_lock do
         branch.chapters.ordered.each do |chapter|
+          next if Curriculum::LegacyAnchor.internal_chapter?(chapter)
           chapter_node = CurriculumNode.find_or_create_by!(legacy_chapter: chapter) do |node|
             node.assign_attributes(branch:, kind: "folder", title: chapter.title, position: chapter.position)
           end

@@ -20,7 +20,7 @@ module Api
     end
 
     def move
-      node = tree.move(node_id: params[:id], parent_id: node_params[:parent_id])
+      node = tree.move(node_id: params[:id], parent_id: node_params[:parent_id], before_id: node_params[:before_id])
       audit!(action: "curriculum.node.move", target: node, metadata: { branch_id: branch.id, parent_id: node.parent_id })
       render json: { node: serialize(node) }
     end
@@ -47,7 +47,7 @@ module Api
 
     def branch = @branch ||= Branch.find(params.require(:branch_id))
     def tree = @tree ||= Curriculum::FolderTree.new(branch)
-    def node_params = params.fetch(:node, {}).permit(:title, :parent_id, :request_key)
+    def node_params = params.fetch(:node, {}).permit(:title, :parent_id, :before_id, :request_key)
 
     def serialize_tree(parent_id = nil)
       CurriculumNode.where(branch:, parent_id:).ordered.map do |node|

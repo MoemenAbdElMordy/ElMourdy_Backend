@@ -1,11 +1,11 @@
 class CreateCurriculumNodes < ActiveRecord::Migration[8.1]
   def change
     create_table :curriculum_nodes do |t|
-      t.references :branch, null: false, foreign_key: true
-      t.references :parent, foreign_key: { to_table: :curriculum_nodes }
+      t.references :branch, null: false, foreign_key: true, index: false
+      t.references :parent, foreign_key: { to_table: :curriculum_nodes }, index: false
       t.references :lecture, foreign_key: true
-      t.references :legacy_chapter, foreign_key: { to_table: :chapters }
-      t.references :legacy_lesson, foreign_key: { to_table: :lessons }
+      t.references :legacy_chapter, foreign_key: { to_table: :chapters }, index: false
+      t.references :legacy_lesson, foreign_key: { to_table: :lessons }, index: false
       t.string :kind, null: false, default: "folder"
       t.string :title, null: false
       t.integer :position, null: false
