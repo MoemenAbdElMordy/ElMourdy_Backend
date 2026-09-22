@@ -15,6 +15,9 @@ module Api
 
     def thumbnail
       lecture = playable_free_lectures.find(params[:id])
+      return render_not_found if Curriculum::PresentationVisibility.visible?(
+        lecture:, branch_ids: [lecture.lesson.chapter.branch_id]
+      ) == false
       return render_not_found if lecture.thumbnail_key.blank?
       return unless stale?(etag: [ "free-card-v1", lecture.thumbnail_key ], last_modified: lecture.updated_at, public: true)
 
@@ -40,6 +43,9 @@ module Api
     end
 
     def serialize(lecture)
+      return if Curriculum::PresentationVisibility.visible?(
+        lecture:, branch_ids: [lecture.lesson.chapter.branch_id]
+      ) == false
       asset = lecture.video_assets.find do |candidate|
         candidate.ready? && candidate.video_variants.any?(&:ready?)
       end

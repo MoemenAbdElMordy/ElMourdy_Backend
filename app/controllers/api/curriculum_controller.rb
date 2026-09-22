@@ -82,7 +82,10 @@ module Api
           lecture = node.lecture
           next if visible_only && !published_now?(lecture)
 
-          lesson_has_access = !visible_only || lecture.lesson.is_free || @accessible_lesson_ids.include?(lecture.lesson_id)
+          placement_lesson = lecture.all_lessons.joins(chapter: :branch)
+            .where(chapters: { branch_id: branch.id }).first
+          lesson_has_access = !visible_only || (placement_lesson &&
+            (placement_lesson.is_free || @accessible_lesson_ids.include?(placement_lesson.id)))
           base.merge(lecture_id: node.lecture_id, lecture: serialize_lecture(lecture, lesson_has_access:))
         end
       end.compact

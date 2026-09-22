@@ -142,6 +142,44 @@ class Api::CurriculumNodesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes titles, "Internal content storage"
   end
 
+  test "a hidden legacy folder denies direct playback despite a free lecture" do
+    @lesson.update!(is_free: true)
+    lecture = @lesson.lectures.create!(title: "Protected lecture", position: 1, status: :published, is_free: true)
+    Curriculum::BackfillFolderTree.call(branch: @branch)
+    student = create_student
+    StudentEnrollment.create!(student_profile: student, academic_year: @branch.academic_year,
+      grade: @branch.grade, status: :active, enrolled_at: Time.current)
+
+    assert Videos::Access.allowed?(user: student.user, lecture:)
+    @lesson.chapter.update!(status: :hidden)
+    assert_not Videos::Access.allowed?(user: student.user, lecture:)
+  end
+
+  test "a shared lecture uses the student's grade placement for folder access" do
+    other_grade = Grade.create!(name: "Second Secondary", level: 2, active: true)
+    other_branch = Branch.create!(academic_year: @branch.academic_year, grade: other_grade,
+      title: "Shared subject", position: 1, status: :published)
+    other_chapter = other_branch.chapters.create!(title: "Shared chapter", position: 1, status: :published)
+    other_lesson = other_chapter.lessons.create!(title: "Free placement", position: 1, status: :published, is_free: true)
+    lecture = @lesson.lectures.create!(title: "Shared paid lecture", position: 1, status: :published, is_free: false)
+    lecture.lecture_placements.create!(lesson: other_lesson)
+    Curriculum::BackfillFolderTree.call(branch: other_branch)
+    student = create_student
+    StudentEnrollment.create!(student_profile: student, academic_year: @branch.academic_year,
+      grade: other_grade, status: :active, enrolled_at: Time.current)
+    device = student.device_registrations.create!(
+      device_fingerprint_digest: Security::DigestValue.call(SecureRandom.hex(12)), status: :active)
+    token = Sessions::Start.call(user: student.user, device_registration: device).raw_token
+
+    get "/api/curriculum", headers: authorization_header(token)
+
+    assert_response :success
+    node = response.parsed_body.dig("curriculum", "branches", 0, "nodes", 0, "children", 0, "children", 0)
+    assert_equal lecture.id, node.fetch("lecture_id")
+    assert_equal true, node.dig("lecture", "has_access")
+    assert Videos::Access.allowed?(user: student.user, lecture:)
+  end
+
   private
 
   def create_folder(title, key, parent_id = nil)
