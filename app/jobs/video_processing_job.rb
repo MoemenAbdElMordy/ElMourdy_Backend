@@ -25,11 +25,11 @@ class VideoProcessingJob < ApplicationJob
         upload_variant(asset, storage, output, quality)
         publish_available_quality(asset, quality, duration)
       end
+      asset.update!(processing_status: :ready)
       staging.delete(asset.original_file_key)
     end
   rescue StandardError => error
-    status = asset&.video_variants&.ready&.exists? ? :ready : :failed
-    asset&.update_columns(processing_status: VideoAsset.processing_statuses.fetch(status))
+    asset&.update_columns(processing_status: VideoAsset.processing_statuses.fetch(:failed))
     Rails.logger.error("Video processing failed for asset #{video_asset_id}: #{error.class}: #{error.message}")
     raise
   end
@@ -69,7 +69,7 @@ class VideoProcessingJob < ApplicationJob
 
   def publish_available_quality(asset, quality, duration)
     qualities = (Array(asset.available_qualities) + [ quality ]).uniq
-    asset.update!(processing_status: :ready, duration_seconds: duration, available_qualities: qualities)
+    asset.update!(processing_status: :processing, duration_seconds: duration, available_qualities: qualities)
     asset.lecture.update!(duration_seconds: duration)
   end
 

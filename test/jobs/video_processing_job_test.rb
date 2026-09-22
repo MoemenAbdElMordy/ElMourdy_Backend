@@ -46,4 +46,13 @@ class VideoProcessingJobTest < ActiveJob::TestCase
     assert_not Videos::Storage.staging.exist?(@asset.original_file_key)
     assert Videos::Storage.build.exist?("#{@prefix}/hls/480p/index.m3u8")
   end
+
+  test "the first quality does not mark the video fully ready" do
+    VideoProcessingJob.new.send(:publish_available_quality, @asset, "480p", 120)
+
+    assert @asset.reload.processing?
+    assert_equal ["480p"], @asset.available_qualities
+    assert_equal 120, @lecture.reload.duration_seconds
+    assert Videos::Storage.staging.exist?(@asset.original_file_key)
+  end
 end
