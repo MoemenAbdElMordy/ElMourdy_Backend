@@ -4,6 +4,14 @@ umask 077
 base_archive=${1:?Base source archive required}
 overlay_archive=${2:?Overlay archive required}
 backup_dir=${3:?Backup directory required}
+port=${4:-38080}
+case "$port" in
+  *[!0-9]*|'') echo 'Port must be numeric' >&2; exit 2 ;;
+esac
+if (echo >"/dev/tcp/127.0.0.1/$port") >/dev/null 2>&1; then
+  echo "Staging port $port is already in use" >&2
+  exit 2
+fi
 stamp=$(date -u +%Y%m%d%H%M%S)
 work=$(mktemp -d "/tmp/mourdy-folder-staging-$stamp-XXXXXX")
 network="mourdy-folder-staging-net-$stamp"
@@ -31,9 +39,9 @@ common=(--network "$network" -e RAILS_ENV=production
   -e APPLICATION_HOST=localhost -e FRONTEND_ORIGIN=http://127.0.0.1:5190)
 docker run --rm "${common[@]}" "$image" bundle exec rails db:migrate
 docker run --rm "${common[@]}" "$image" bundle exec rails curriculum:backfill_folders
-docker run -d --name "$app" "${common[@]}" -p 127.0.0.1:38080:80 "$image" ./bin/rails server -b 0.0.0.0 -p 80 >/dev/null
+docker run -d --name "$app" "${common[@]}" -p "127.0.0.1:$port:80" "$image" ./bin/rails server -b 0.0.0.0 -p 80 >/dev/null
 for attempt in $(seq 1 60); do
-  if curl -fsS -H 'Host: localhost' http://127.0.0.1:38080/up >/dev/null; then
+  if curl -fsS -H 'Host: localhost' "http://127.0.0.1:$port/up" >/dev/null; then
     printf 'STAGING READY app=%s db=%s network=%s image=%s work=%s\n' "$app" "$db" "$network" "$image" "$work"
     exit 0
   fi
