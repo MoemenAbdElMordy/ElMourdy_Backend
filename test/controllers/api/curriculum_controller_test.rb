@@ -92,6 +92,29 @@ class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "has_access")
   end
 
+  test "scheduled published lecture is hidden before its time and visible afterward" do
+    year, grade, _branch, _chapter, lesson = create_curriculum
+    scheduled_at = 2.hours.from_now
+    lecture = lesson.lectures.create!(title: "Scheduled Lecture", position: 1,
+      status: :published, publish_at: scheduled_at, is_free: true)
+    student = create_student
+    StudentEnrollment.create!(student_profile: student, academic_year: year, grade:, status: :active,
+      enrolled_at: Time.current)
+    device = student.device_registrations.create!(device_fingerprint_digest: Security::DigestValue.call(SecureRandom.hex(12)), status: :active)
+    token = Sessions::Start.call(user: student.user, device_registration: device).raw_token
+
+    get "/api/curriculum", headers: authorization_header(token)
+    assert_response :success
+    assert_empty response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures")
+    assert_not Videos::Access.allowed?(user: student.user, lecture:)
+
+    travel_to scheduled_at + 1.minute do
+      get "/api/curriculum", headers: authorization_header(token)
+      assert_equal [ lecture.id ], response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures").pluck("id")
+      assert Videos::Access.allowed?(user: student.user, lecture:)
+    end
+  end
+
   test "a free lecture remains accessible inside a paid lesson" do
     year, grade, _branch, _chapter, lesson = create_curriculum
     lecture = lesson.lectures.create!(title: "Free Lecture", position: 1, status: :published, is_free: true)
