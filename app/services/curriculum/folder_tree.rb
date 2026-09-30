@@ -68,11 +68,16 @@ module Curriculum
       end
     end
 
-    def delete_empty_folder(node_id:)
+    def delete_folder_preserving_children(node_id:)
       @branch.with_lock do
         node = nodes.find(node_id)
-        raise Error, "Only empty folders can be deleted here" unless node.kind == "folder" && !node.children.exists?
+        raise Error, "Only folders can be deleted here" unless node.kind == "folder"
         parent_id = node.parent_id
+        next_position = siblings(parent_id).maximum(:position).to_i
+        node.children.ordered.each do |child|
+          next_position += 1
+          child.update!(parent_id:, position: next_position)
+        end
         node.destroy!
         compact(parent_id)
       end

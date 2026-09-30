@@ -55,11 +55,14 @@ class Curriculum::FolderTreeTest < ActiveSupport::TestCase
     assert_equal parent.id, first.reload.parent_id
   end
 
-  test "non empty folders cannot be removed" do
+  test "removing a nonempty folder promotes its children without deleting them" do
     first = @tree.create_folder(title: "First", request_key: "first")
-    @tree.create_folder(title: "Second", parent_id: first.id, request_key: "second")
-    assert_raises(ApplicationService::Error) { @tree.delete_empty_folder(node_id: first.id) }
-    assert first.reload.persisted?
+    second = @tree.create_folder(title: "Second", parent_id: first.id, request_key: "second")
+    assert_difference "CurriculumNode.count", -1 do
+      @tree.delete_folder_preserving_children(node_id: first.id)
+    end
+    assert_not CurriculumNode.exists?(first.id)
+    assert_nil second.reload.parent_id
   end
 
   test "backfill is idempotent and moving a lecture preserves its legacy access anchor" do

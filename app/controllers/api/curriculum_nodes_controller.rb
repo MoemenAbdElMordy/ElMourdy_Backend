@@ -32,7 +32,7 @@ module Api
 
     def destroy
       node = CurriculumNode.where(branch:).find(params[:id])
-      tree.delete_empty_folder(node_id: node.id)
+      tree.delete_folder_preserving_children(node_id: node.id)
       audit!(action: "curriculum.folder.destroy", target: branch, metadata: { branch_id: branch.id, node_id: node.id })
       head :no_content
     end

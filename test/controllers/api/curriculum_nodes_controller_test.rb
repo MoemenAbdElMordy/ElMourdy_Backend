@@ -29,6 +29,25 @@ class Api::CurriculumNodesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "One folder", response.parsed_body.dig("node", "title")
   end
 
+  test "deleting a nonempty folder keeps its lectures and subfolders at the parent level" do
+    folder = create_folder("Container", "container")
+    child = create_folder("Nested", "nested", folder.fetch("id"))
+    lecture = @lesson.lectures.create!(title: "Retained lecture", position: 1, status: :published)
+    node = @branch.curriculum_nodes.create!(kind: "lecture", title: lecture.title,
+      lecture:, parent_id: folder.fetch("id"), position: 2)
+
+    assert_difference "CurriculumNode.count", -1 do
+      assert_no_difference "Lecture.count" do
+        delete "/api/curriculum_nodes/#{folder.fetch('id')}", params: { branch_id: @branch.id },
+          headers: authorization_header(@token)
+        assert_response :no_content
+      end
+    end
+    assert_nil CurriculumNode.find(child.fetch("id")).parent_id
+    assert_nil node.reload.parent_id
+    assert Lecture.exists?(lecture.id)
+  end
+
   test "assistant without content permission and student cannot mutate folders" do
     assistant = create_user(role: :assistant)
     AssistantProfile.create!(user: assistant)

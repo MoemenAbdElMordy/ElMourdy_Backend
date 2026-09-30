@@ -11,6 +11,9 @@ module Curriculum
           asset.update!(lecture: replacement_lecture)
         end
         LectureWatchEvent.where(lecture_id: lecture.id).delete_all
+        # A redeemed code remains redeemed in the audit trail, but its grant
+        # cannot reference a lecture that no longer exists.
+        LectureAccessGrant.where(lecture_id: lecture.id).delete_all
         lecture.destroy!
       end
 

@@ -252,7 +252,7 @@ module Api
 
       events = profile.lecture_watch_events.where(lecture_id: lectures.map(&:id))
       watched_seconds = events.group(:lecture_id).sum(:watched_seconds)
-      last_positions = events.group(:lecture_id).maximum(:last_position_seconds)
+      latest_events = events.order(:updated_at, :id).to_a.index_by(&:lecture_id)
       last_watched = events.group(:lecture_id).maximum(:updated_at)
       completed_ids = events.where.not(completed_at: nil).distinct.pluck(:lecture_id).to_set
 
@@ -269,8 +269,9 @@ module Api
           branch: lecture.lesson.chapter.branch.title,
           duration_seconds: duration,
           watched_seconds: watched,
-          last_position_seconds: last_positions.fetch(lecture.id, 0),
+          last_position_seconds: latest_events[lecture.id]&.last_position_seconds.to_i,
           progress_percent: percent,
+          watch_status: percent >= 75 ? "watched" : percent >= 20 ? "partial" : "not_watched",
           watched: watched.positive? || completed,
           completed:,
           last_watched_at: last_watched[lecture.id]

@@ -30,6 +30,32 @@ module Api
       head :no_content
     end
 
+    def viewers
+      profiles = StudentProfile.joins(:lecture_watch_events)
+        .where(lecture_watch_events: { lecture_id: lecture.id }).distinct
+        .includes(:user).order(:id)
+      profiles, pagination = paginate(profiles)
+      events = LectureWatchEvent.where(lecture_id: lecture.id, student_profile_id: profiles.map(&:id))
+        .order(:updated_at, :id).group_by(&:student_profile_id)
+      duration = lecture.duration_seconds.to_i.nonzero? || lecture.effective_video_asset&.duration_seconds.to_i
+
+      render json: { viewers: profiles.map { |profile|
+        watched = events.fetch(profile.id, [])
+        latest = watched.last
+        seconds = watched.sum(&:watched_seconds)
+        percent = duration.positive? ? [ (seconds.to_f / duration * 100).round, 100 ].min : 0
+        percent = 100 if watched.any? { |event| event.completed_at.present? }
+        {
+          student_id: profile.user_id, name: profile.user.name,
+          watched_seconds: seconds, duration_seconds: duration,
+          last_position_seconds: latest&.last_position_seconds.to_i,
+          progress_percent: percent,
+          status: percent >= 75 ? "watched" : percent >= 20 ? "partial" : "not_watched",
+          last_watched_at: latest&.updated_at
+        }
+      }, pagination: }
+    end
+
     def reorder
       Curriculum::Reorder.call(scope: Lecture.where(lesson_id: params.require(:lesson_id)), ordered_ids: params.require(:ordered_ids))
       head :no_content

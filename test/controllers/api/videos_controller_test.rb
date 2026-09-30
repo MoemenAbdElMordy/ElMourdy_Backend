@@ -128,6 +128,23 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert Videos::Storage.build.exist?("#{prefix}/hls/720p/index.m3u8")
   end
 
+  test "teacher deletes a paid lecture after students redeemed access codes" do
+    student = create_student
+    batch = ActivationCodeBatch.create!(name: "Lecture codes", quantity: 1,
+      expires_on: Date.current + 30.days, created_by_user: @teacher)
+    code = ActivationCode.create!(activation_code_batch: batch, code_digest: SecureRandom.hex(32),
+      status: :redeemed, redeemed_by_student_profile: student, redeemed_at: Time.current)
+    LectureAccessGrant.create!(student_profile: student, lecture: @lecture,
+      academic_year: @year, activation_code: code, expires_on: batch.expires_on)
+
+    delete api_lecture_url(@lecture), headers: authorization(@teacher_token)
+
+    assert_response :no_content
+    assert_not Lecture.exists?(@lecture.id)
+    assert_not LectureAccessGrant.where(lecture_id: @lecture.id).exists?
+    assert code.reload.redeemed?
+  end
+
   test "deleting a lecture preserves a video reused by another lecture" do
     asset = ready_asset
     other_lecture = Lecture.create!(lesson: @lesson, title: "Shared Lecture", position: 2, status: :published)
@@ -153,6 +170,21 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_equal 100, item.fetch("storage_size_bytes")
     assert_equal 1, item.fetch("used_by_lectures_count")
     assert item.fetch("can_delete")
+  end
+
+  test "video library searches by lecture name across all pages" do
+    target = ready_asset
+    21.times do |index|
+      VideoAsset.create!(original_file_key: "videos/search-#{SecureRandom.uuid}/original/source.mp4",
+        processing_status: :uploaded, created_by_user: @teacher)
+    end
+
+    get api_video_assets_url, params: { query: @lecture.title, per_page: 2 },
+      headers: authorization(@teacher_token)
+
+    assert_response :success
+    assert_equal [ target.id ], response.parsed_body.fetch("video_assets").pluck("id")
+    assert_equal 1, response.parsed_body.dig("pagination", "total_count")
   end
 
   test "authorized student progress requires verified watch time and ignores seeking" do

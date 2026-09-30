@@ -78,6 +78,8 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     progress = response.parsed_body.dig("student", "video_progress")
     assert_equal [ "Watched Video", "Unwatched Video" ], progress.pluck("title")
     assert_equal 40, progress.first["progress_percent"]
+    assert_equal "partial", progress.first["watch_status"]
+    assert_equal "not_watched", progress.second["watch_status"]
     assert progress.first["watched"]
     assert_not progress.second["watched"]
   end

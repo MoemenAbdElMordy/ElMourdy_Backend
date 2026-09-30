@@ -5,6 +5,11 @@ module Api
 
     def index
       assets = VideoAsset.includes(:lecture, :video_variants, :selected_by_lectures).order(created_at: :desc)
+      if params[:query].present?
+        search = params[:query].to_s.strip.first(100)
+        assets = assets.left_joins(:lecture).where("lectures.title LIKE :query OR video_assets.id = :id",
+          query: "%#{ActiveRecord::Base.sanitize_sql_like(search)}%", id: search.to_i)
+      end
       assets, pagination = paginate(assets)
       render json: { video_assets: assets.map { |asset| serialize(asset) }, pagination: }
     end
