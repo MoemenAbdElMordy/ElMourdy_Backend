@@ -1,6 +1,39 @@
 require "test_helper"
 
 class Api::ExamsControllerTest < ActionDispatch::IntegrationTest
+  test "homework progress includes students who did not start" do
+    homework = create_exam
+    homework.update!(assessment_type: :homework)
+    student = create_student
+    StudentEnrollment.create!(student_profile: student, academic_year: homework.academic_year,
+      grade: homework.grade, status: :active, enrolled_at: Time.current)
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+
+    get "/api/exams/#{homework.id}/progress", headers: auth(token)
+
+    assert_response :success
+    item = response.parsed_body.fetch("students").sole
+    assert_equal student.user_id, item.fetch("student_id")
+    assert_equal "not_started", item.fetch("status")
+    assert_equal 0, item.fetch("attempts_count")
+  end
+
+  test "homework progress requires homework permission" do
+    homework = create_exam
+    homework.update!(assessment_type: :homework)
+    assistant = create_user(role: :assistant)
+    profile = AssistantProfile.create!(user: assistant)
+    token = Sessions::Start.call(user: assistant).raw_token
+
+    get "/api/exams/#{homework.id}/progress", headers: auth(token)
+    assert_response :forbidden
+
+    profile.assistant_permissions.create!(permission_key: "manage_homeworks", enabled: true)
+    get "/api/exams/#{homework.id}/progress", headers: auth(token)
+    assert_response :success
+  end
+
   test "teacher creates a complete published exam" do
     teacher = create_user(role: :teacher)
     token = Sessions::Start.call(user: teacher).raw_token

@@ -92,7 +92,9 @@ Rails.application.routes.draw do
       post :redeem, on: :collection
     end
     resources :lesson_access_grants, only: %i[index create update]
-    resources :exams, only: %i[index show create update]
+    resources :exams, only: %i[index show create update] do
+      get :progress, on: :member
+    end
     resources :exam_imports, only: :create
     resources :exam_attempts, only: %i[index show] do
       post :submit, on: :member

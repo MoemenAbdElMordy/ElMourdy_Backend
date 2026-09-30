@@ -23,6 +23,36 @@ module Api
       render json: { exams: exams.map { |exam| serialize_exam(exam) }, pagination: }
     end
 
+    def progress
+      exam = Exam.find(params[:id])
+      permission = exam.assessment_type_homework? ? "manage_homeworks" : "manage_exams"
+      require_teacher_or_assistant_permission!(permission)
+      return if performed?
+
+      grade_ids = exam.exam_grade_assignments.pluck(:grade_id).presence || [ exam.grade_id ]
+      profiles = StudentProfile.joins(:student_enrollments)
+        .where(student_enrollments: { academic_year_id: exam.academic_year_id, grade_id: grade_ids,
+          status: StudentEnrollment.statuses.fetch("active") }).distinct.includes(:user).order(:id)
+      profiles, pagination = paginate(profiles)
+      attempts = ExamAttempt.where(exam_id: exam.id, student_profile_id: profiles.map(&:id))
+        .group_by(&:student_profile_id)
+
+      render json: { students: profiles.map { |profile|
+        rows = attempts.fetch(profile.id, [])
+        submitted = rows.select(&:submitted?)
+        latest = rows.max_by(&:started_at)
+        {
+          student_id: profile.user_id, name: profile.user.name,
+          status: submitted.any? ? "submitted" : rows.any? ? "in_progress" : "not_started",
+          attempts_count: rows.size,
+          submitted_attempts_count: submitted.size,
+          best_percent: submitted.filter_map { |row| row.percent&.to_f }.max,
+          latest_percent: latest&.percent&.to_f,
+          last_activity_at: rows.map { |row| row.submitted_at || row.updated_at }.compact.max
+        }
+      }, pagination: }
+    end
+
     def show
       exam = Exam.includes(exam_questions: :exam_choices).find(params[:id])
       authorize_exam_access!(exam)
