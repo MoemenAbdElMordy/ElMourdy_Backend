@@ -162,6 +162,8 @@ module Api
       }
       return payload unless detailed
 
+      videos = video_progress(profile, enrollment)
+
       payload.merge(
         birth_date: profile.birth_date,
         parent_phone: profile.parent_phone_e164,
@@ -186,10 +188,10 @@ module Api
         end,
         progress: {
           completed_lectures: profile.lecture_watch_events.where.not(completed_at: nil).distinct.count(:lecture_id),
-          watched_lectures: profile.lecture_watch_events.distinct.count(:lecture_id),
+          watched_lectures: videos.count { |video| video[:watch_status] == "watched" },
           highest_score: profile.exam_attempts.submitted.maximum(:percent)&.to_f
         },
-        video_progress: video_progress(profile, enrollment),
+        video_progress: videos,
         assessments: assessment_progress(profile, enrollment)
       )
     end
@@ -255,18 +257,30 @@ module Api
       latest_events = events.order(:updated_at, :id).to_a.index_by(&:lecture_id)
       last_watched = events.group(:lecture_id).maximum(:updated_at)
       completed_ids = events.where.not(completed_at: nil).distinct.pluck(:lecture_id).to_set
+      presentation_nodes = CurriculumNode.where(lecture_id: lectures.map(&:id))
+        .joins(:branch).where(branches: {
+          academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id
+        }).includes(:branch, :parent).group_by(&:lecture_id)
 
       lectures.map do |lecture|
         duration = lecture.duration_seconds.to_i.nonzero? || (lecture.effective_video_asset&.duration_seconds).to_i
         watched = watched_seconds.fetch(lecture.id, 0)
         completed = completed_ids.include?(lecture.id)
         percent = completed ? 100 : (duration.positive? ? [ (watched.to_f / duration * 100).round, 100 ].min : 0)
+        node = presentation_nodes[lecture.id]&.first
+        folders = []
+        cursor = node&.parent
+        while cursor
+          folders.unshift(cursor.title)
+          cursor = cursor.parent
+        end
+        legacy_internal = lecture.lesson.chapter.title == "Internal content storage"
         {
           lecture_id: lecture.id,
           title: lecture.title,
-          lesson: lecture.lesson.title,
-          chapter: lecture.lesson.chapter.title,
-          branch: lecture.lesson.chapter.branch.title,
+          lesson: folders.last || (legacy_internal ? nil : lecture.lesson.title),
+          chapter: folders.first || (legacy_internal ? nil : lecture.lesson.chapter.title),
+          branch: node&.branch&.title || lecture.lesson.chapter.branch.title,
           duration_seconds: duration,
           watched_seconds: watched,
           last_position_seconds: latest_events[lecture.id]&.last_position_seconds.to_i,

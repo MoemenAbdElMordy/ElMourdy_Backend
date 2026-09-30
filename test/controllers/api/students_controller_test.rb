@@ -84,6 +84,29 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     assert_not progress.second["watched"]
   end
 
+  test "opening a video does not count as watched and the report uses public folder names" do
+    student = enrolled_student(name: "Folder Viewer")
+    branch = Branch.create!(academic_year: @year, grade: @grade, title: "Grammar", position: 1, status: :published)
+    lesson = Curriculum::LegacyAnchor.ensure_for!(branch)
+    lecture = lesson.lectures.create!(title: "Public lesson", position: 1, status: :published,
+      video_source_type: :youtube, youtube_video_id: "abcdefghijk", duration_seconds: 100)
+    folder = branch.curriculum_nodes.create!(kind: "folder", title: "First chapter", position: 1)
+    branch.curriculum_nodes.create!(kind: "lecture", title: lecture.title, lecture:, parent: folder, position: 1)
+    student.lecture_watch_events.create!(lecture:, started_at: Time.current,
+      watched_seconds: 0, last_position_seconds: 0)
+
+    get "/api/students/#{student.user_id}", headers: authorization_header(@token)
+
+    assert_response :success
+    report = response.parsed_body.fetch("student")
+    assert_equal 0, report.dig("progress", "watched_lectures")
+    video = report.fetch("video_progress").find { |item| item.fetch("lecture_id") == lecture.id }
+    assert_equal "not_watched", video.fetch("watch_status")
+    assert_equal "First chapter", video.fetch("chapter")
+    assert_equal "Grammar", video.fetch("branch")
+    assert_not_includes [ video.fetch("chapter"), video.fetch("lesson") ], "Internal content storage"
+  end
+
   test "returns complete account, homework, exam, and attempt reporting" do
     student = enrolled_student(name: "Reported Student")
     student.user.update!(email: "reported.student@example.test")
