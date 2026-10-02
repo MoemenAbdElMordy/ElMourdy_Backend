@@ -38,7 +38,7 @@ module Api
         .joins(:lesson)
         .where(lesson_id: visible_lesson_ids)
         .where("lectures.is_free = ? OR lessons.is_free = ?", true, true)
-        .includes(lesson: { chapter: { branch: :grade } }, video_assets: :video_variants)
+        .includes(:selected_video_asset, lesson: { chapter: { branch: :grade } }, video_assets: :video_variants)
         .order("lectures.position")
     end
 
@@ -46,17 +46,17 @@ module Api
       return if Curriculum::PresentationVisibility.visible?(
         lecture:, branch_ids: [lecture.lesson.chapter.branch_id]
       ) == false
-      asset = lecture.video_assets.find do |candidate|
-        candidate.ready? && candidate.video_variants.any?(&:ready?)
-      end
-      return unless asset
+      asset = lecture.effective_video_asset
+      return unless asset&.ready?
+      asset.video_variants.load
+      return unless asset.video_variants.any?(&:ready?)
 
       branch = lecture.lesson.chapter.branch
       {
         id: lecture.id,
         title: lecture.title,
         description: lecture.description,
-        duration_seconds: lecture.duration_seconds || asset.duration_seconds,
+        duration_seconds: asset.duration_seconds || lecture.duration_seconds,
         available_qualities: asset.video_variants.select(&:ready?).map(&:quality),
         has_thumbnail: lecture.thumbnail_key.present?,
         branch: { id: branch.id, title: branch.title },

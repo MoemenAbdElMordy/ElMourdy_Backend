@@ -272,15 +272,17 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
   test "teacher reuses an existing processed video without uploading it again" do
     _student, token = enrolled_student_with_access
     source_asset = ready_asset
-    another_lecture = Lecture.create!(lesson: @lesson, title: "Reused Lecture", position: 2, status: :published)
+    another_lecture = Lecture.create!(lesson: @lesson, title: "Reused Lecture", position: 2, status: :published, duration_seconds: 600)
 
     post reuse_api_lecture_video_upload_url(another_lecture), params: { video_asset_id: source_asset.id }, headers: authorization(@teacher_token), as: :json
     assert_response :success
     assert_equal source_asset.id, another_lecture.reload.selected_video_asset_id
+    assert_equal source_asset.duration_seconds, another_lecture.duration_seconds
 
     get api_lecture_video_playback_url(another_lecture), headers: authorization(token)
     assert_response :success
     assert_equal source_asset.id, response.parsed_body.dig("playback", "video_asset_id")
+    assert_equal source_asset.duration_seconds, response.parsed_body.dig("playback", "lecture", "duration_seconds")
   end
 
   test "delivery rejects an expired or invalid token" do

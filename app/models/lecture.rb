@@ -18,6 +18,12 @@ class Lecture < ApplicationRecord
     selected_video_asset || video_assets.ready.order(created_at: :desc).first
   end
 
+  def effective_duration_seconds
+    return duration_seconds if video_source_type_youtube?
+
+    effective_video_asset&.duration_seconds || duration_seconds
+  end
+
   has_many :lecture_watch_events, dependent: :restrict_with_error
   has_many :lecture_access_grants, dependent: :restrict_with_error
 

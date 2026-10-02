@@ -86,6 +86,7 @@ module Api
           birth_date: student.birth_date,
           governorate: student.governorate,
           school: student.school,
+          center_name: student.center_name,
           status: student.user.status,
           grade: enrollment&.grade&.name,
           grade_level: enrollment&.grade&.level,

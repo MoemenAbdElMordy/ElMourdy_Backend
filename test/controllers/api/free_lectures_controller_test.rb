@@ -37,6 +37,36 @@ class Api::FreeLecturesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, lectures.first.dig("grade", "level")
   end
 
+  test "guest sees a free lecture using a video uploaded for another lecture but not a scheduled one" do
+    _year, _grade, _branch, _chapter, lesson = create_curriculum
+    paid = lesson.lectures.create!(title: "Original Upload", position: 1, status: :published)
+    asset = paid.video_assets.create!(
+      processing_status: :ready,
+      original_file_key: "videos/shared/original/source.mp4",
+      duration_seconds: 600,
+      available_qualities: [ "480p" ]
+    )
+    asset.video_variants.create!(
+      quality: "480p", status: :ready,
+      file_key: "videos/shared/hls/480p/index.m3u8", size_bytes: 1024
+    )
+    visible = lesson.lectures.create!(
+      title: "Reused Free Video", position: 2, status: :published,
+      is_free: true, selected_video_asset: asset, duration_seconds: 1200
+    )
+    lesson.lectures.create!(
+      title: "Scheduled Free Video", position: 3, status: :published,
+      is_free: true, selected_video_asset: asset, publish_at: 2.days.from_now
+    )
+
+    get "/api/free_lectures"
+
+    assert_response :success
+    assert_equal [ visible.id ], response.parsed_body.fetch("lectures").pluck("id")
+    assert_equal [ "480p" ], response.parsed_body.fetch("lectures").first.fetch("available_qualities")
+    assert_equal 600, response.parsed_body.fetch("lectures").first.fetch("duration_seconds")
+  end
+
   test "guest can load a thumbnail only for a playable free lecture" do
     _year, _grade, _branch, _chapter, lesson = create_curriculum
     lesson.update!(is_free: true)

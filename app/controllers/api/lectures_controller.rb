@@ -37,7 +37,7 @@ module Api
       profiles, pagination = paginate(profiles)
       events = LectureWatchEvent.where(lecture_id: lecture.id, student_profile_id: profiles.map(&:id))
         .order(:updated_at, :id).group_by(&:student_profile_id)
-      duration = lecture.duration_seconds.to_i.nonzero? || lecture.effective_video_asset&.duration_seconds.to_i
+      duration = lecture.effective_duration_seconds.to_i
 
       render json: { viewers: profiles.map { |profile|
         watched = events.fetch(profile.id, [])

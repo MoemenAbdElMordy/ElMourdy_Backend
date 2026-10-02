@@ -87,7 +87,7 @@ module Api
       return unless event
 
       lecture = event.lecture
-      duration = lecture.duration_seconds.to_i.nonzero? || lecture.video_assets.ready.order(created_at: :desc).pick(:duration_seconds).to_i
+      duration = lecture.effective_duration_seconds.to_i
       watched_seconds = event.student_profile.lecture_watch_events.where(lecture:).sum(:watched_seconds)
       {
         lecture_id: lecture.id,

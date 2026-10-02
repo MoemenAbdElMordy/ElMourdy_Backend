@@ -45,7 +45,8 @@ module Api
 
     def reuse
       asset = VideoAsset.ready.find(params.require(:video_asset_id))
-      lecture.update!(video_source_type: :uploaded, selected_video_asset: asset, youtube_video_id: nil)
+      lecture.update!(video_source_type: :uploaded, selected_video_asset: asset, youtube_video_id: nil,
+        duration_seconds: asset.duration_seconds)
       render json: { video_asset: serialize(asset) }
     end
 

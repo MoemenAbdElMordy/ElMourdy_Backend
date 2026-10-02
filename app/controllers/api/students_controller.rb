@@ -263,7 +263,7 @@ module Api
         }).includes(:branch, :parent).group_by(&:lecture_id)
 
       lectures.map do |lecture|
-        duration = lecture.duration_seconds.to_i.nonzero? || (lecture.effective_video_asset&.duration_seconds).to_i
+        duration = lecture.effective_duration_seconds.to_i
         watched = watched_seconds.fetch(lecture.id, 0)
         completed = completed_ids.include?(lecture.id)
         percent = completed ? 100 : (duration.positive? ? [ (watched.to_f / duration * 100).round, 100 ].min : 0)

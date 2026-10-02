@@ -34,9 +34,9 @@ module Api
 
     def bounded_position(lecture, requested_position)
       position = [ requested_position.to_i, 0 ].max
-      return position unless lecture.duration_seconds.present?
+      return position unless lecture.effective_duration_seconds.present?
 
-      [ position, lecture.duration_seconds ].min
+      [ position, lecture.effective_duration_seconds ].min
     end
 
     def accepted_watch_seconds(event, requested_delta, now)
@@ -65,15 +65,15 @@ module Api
     end
 
     def completion_threshold(lecture)
-      return unless lecture.duration_seconds.present?
+      return unless lecture.effective_duration_seconds.present?
 
-      (lecture.duration_seconds * 0.9).ceil
+      (lecture.effective_duration_seconds * 0.9).ceil
     end
 
     def progress_percent(lecture, watched_seconds)
-      return 0 unless lecture.duration_seconds.to_i.positive?
+      return 0 unless lecture.effective_duration_seconds.to_i.positive?
 
-      [ (watched_seconds.to_f / lecture.duration_seconds * 100).round, 100 ].min
+      [ (watched_seconds.to_f / lecture.effective_duration_seconds * 100).round, 100 ].min
     end
   end
 end

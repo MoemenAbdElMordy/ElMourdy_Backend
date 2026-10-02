@@ -31,7 +31,7 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
   test "returns only students linked to the authenticated parent" do
     parent_phone = unique_phone
     linked_student = create_student(parent_phone:)
-    linked_student.update!(school: "Test School")
+    linked_student.update!(school: "Test School", center_name: "Test Center")
     year, grade = create_academic_setup
     StudentEnrollment.create!(
       student_profile: linked_student, academic_year: year, grade:,
@@ -49,6 +49,7 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ linked_student.id ], response.parsed_body["linked_students"].pluck("id")
     assert_equal grade.name, response.parsed_body.dig("linked_students", 0, "grade")
     assert_equal "Test School", response.parsed_body.dig("linked_students", 0, "school")
+    assert_equal "Test Center", response.parsed_body.dig("linked_students", 0, "center_name")
     assert response.parsed_body.dig("linked_students", 0, "last_active_at").present?
   end
 

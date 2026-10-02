@@ -30,8 +30,9 @@ module Api
 
     def base_payload(lecture, event)
       {
-        lecture: lecture.as_json(only: %i[id title description attachment_name attachment_url duration_seconds]).merge(
-          has_thumbnail: lecture.thumbnail_key.present?
+        lecture: lecture.as_json(only: %i[id title description attachment_name attachment_url]).merge(
+          has_thumbnail: lecture.thumbnail_key.present?,
+          duration_seconds: lecture.effective_duration_seconds
         ),
         watch_event_id: event&.id,
         last_position_seconds: event&.last_position_seconds.to_i,

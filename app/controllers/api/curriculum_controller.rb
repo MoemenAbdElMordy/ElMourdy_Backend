@@ -111,7 +111,7 @@ module Api
     def serialize_lecture(lecture, lesson_has_access: true)
       asset = lecture.video_source_type_youtube? ? nil : lecture.effective_video_asset
       watch_event = @watch_events_by_lecture&.fetch(lecture.id, nil)
-      duration = lecture.duration_seconds.to_i.nonzero? || (asset&.duration_seconds).to_i
+      duration = lecture.effective_duration_seconds.to_i
       content_payload(lecture).merge(
         is_free: lecture.is_free,
         has_access: lesson_has_access || lecture.is_free || @accessible_lecture_ids&.include?(lecture.id),
