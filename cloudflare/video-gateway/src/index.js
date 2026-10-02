@@ -33,6 +33,7 @@ function responseHeaders(request, env, object) {
   headers.set("access-control-allow-origin", allowedOrigin);
   headers.set("vary", "Origin");
   headers.set("cache-control", "private, max-age=60");
+  headers.set("accept-ranges", "bytes");
   return headers;
 }
 
@@ -69,12 +70,18 @@ export default {
 
     const key = `${payload.prefix}/${mediaPath.join("/")}`;
     if (key.includes("..")) return new Response("Invalid path", { status: 400 });
-    const object = await env.VIDEOS.get(key, { range: request.headers });
+    const rangeRequested = request.headers.has("Range");
+    const object = await env.VIDEOS.get(key, rangeRequested ? { range: request.headers } : undefined);
     if (!object) return new Response("Not found", { status: 404 });
 
+    const headers = responseHeaders(request, env, object);
+    if (rangeRequested && object.range) {
+      const { offset, length } = object.range;
+      headers.set("content-range", `bytes ${offset}-${offset + length - 1}/${object.size}`);
+    }
     return new Response(request.method === "HEAD" ? null : object.body, {
-      status: object.range ? 206 : 200,
-      headers: responseHeaders(request, env, object)
+      status: rangeRequested && object.range ? 206 : 200,
+      headers
     });
   }
 };
