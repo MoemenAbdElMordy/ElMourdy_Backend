@@ -7,7 +7,7 @@ module Api
     PUBLIC_THUMBNAIL_HEIGHT = 450
     def index
       version = CacheVersions.current("catalog")
-      lectures = Rails.cache.fetch("catalog/#{version}/free-lectures", expires_in: 5.minutes) do
+      lectures = Rails.cache.fetch("catalog/#{version}/free-lectures-v2", expires_in: 5.minutes) do
         playable_free_lectures.filter_map { |lecture| serialize(lecture) }
       end
       render json: { lectures: }
@@ -46,18 +46,28 @@ module Api
       return if Curriculum::PresentationVisibility.visible?(
         lecture:, branch_ids: [lecture.lesson.chapter.branch_id]
       ) == false
-      asset = lecture.effective_video_asset
-      return unless asset&.ready?
-      asset.video_variants.load
-      return unless asset.video_variants.any?(&:ready?)
+      if lecture.video_source_type_youtube?
+        return if lecture.youtube_video_id.blank?
+
+        duration = lecture.duration_seconds
+        qualities = []
+      else
+        asset = lecture.effective_video_asset
+        return unless asset&.ready?
+        asset.video_variants.load
+        return unless asset.video_variants.any?(&:ready?)
+
+        duration = asset.duration_seconds || lecture.duration_seconds
+        qualities = asset.video_variants.select(&:ready?).map(&:quality)
+      end
 
       branch = lecture.lesson.chapter.branch
       {
         id: lecture.id,
         title: lecture.title,
         description: lecture.description,
-        duration_seconds: asset.duration_seconds || lecture.duration_seconds,
-        available_qualities: asset.video_variants.select(&:ready?).map(&:quality),
+        duration_seconds: duration,
+        available_qualities: qualities,
         has_thumbnail: lecture.thumbnail_key.present?,
         branch: { id: branch.id, title: branch.title },
         grade: { id: branch.grade.id, name: branch.grade.name, level: branch.grade.level }

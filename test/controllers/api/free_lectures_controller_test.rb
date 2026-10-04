@@ -67,6 +67,33 @@ class Api::FreeLecturesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 600, response.parsed_body.fetch("lectures").first.fetch("duration_seconds")
   end
 
+  test "guest sees published free YouTube lectures without uploaded variants" do
+    _year, _grade, _branch, _chapter, lesson = create_curriculum
+    lesson.update!(is_free: true)
+    youtube = lesson.lectures.create!(
+      title: "Free YouTube Lecture", position: 1, status: :published,
+      video_source_type: :youtube, youtube_video_id: "DkJYaDCf48s",
+      duration_seconds: 420
+    )
+    lesson.lectures.create!(
+      title: "Scheduled YouTube Lecture", position: 2, status: :published,
+      video_source_type: :youtube, youtube_video_id: "sBr7SWFXW7o",
+      publish_at: 2.days.from_now
+    )
+    lesson.lectures.create!(
+      title: "Draft YouTube Lecture", position: 3, status: :draft,
+      video_source_type: :youtube, youtube_video_id: "kd79Fa-JicY"
+    )
+
+    get "/api/free_lectures"
+
+    assert_response :success
+    lectures = response.parsed_body.fetch("lectures")
+    assert_equal [youtube.id], lectures.pluck("id")
+    assert_equal 420, lectures.first.fetch("duration_seconds")
+    assert_equal [], lectures.first.fetch("available_qualities")
+  end
+
   test "guest can load a thumbnail only for a playable free lecture" do
     _year, _grade, _branch, _chapter, lesson = create_curriculum
     lesson.update!(is_free: true)
