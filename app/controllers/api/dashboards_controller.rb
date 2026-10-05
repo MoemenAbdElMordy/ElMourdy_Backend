@@ -23,10 +23,10 @@ module Api
       enrollment = profile.student_enrollments.active.includes(:academic_year, :grade).order(enrolled_at: :desc).first
       return empty_student_dashboard unless enrollment
 
-      lecture_scope = Lecture.joins(lesson: { chapter: :branch })
-        .where(status: Lecture.statuses[:published])
-        .where("lectures.publish_at IS NULL OR lectures.publish_at <= ?", Time.current)
-        .where(branches: { academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id })
+      branches = Branch.where(academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id)
+        .visible.ordered.to_a
+      lecture_ids_by_branch = branches.to_h { |branch| [branch.id, Curriculum::StudentLectureIds.for_branch(branch)] }
+      lecture_scope = Lecture.where(id: lecture_ids_by_branch.values.flatten.uniq)
       completed = profile.lecture_watch_events.where(lecture_id: lecture_scope.select(:id))
         .where.not(completed_at: nil).distinct.count(:lecture_id)
       completed_ids = profile.lecture_watch_events.where(lecture_id: lecture_scope.select(:id))
@@ -55,13 +55,12 @@ module Api
           total_lectures: lecture_scope.count,
           completed_lectures: completed,
           highest_score: profile.exam_attempts.submitted.maximum(:percent)&.to_f,
-          subjects_count: Branch.where(academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id).visible.count,
+          subjects_count: branches.length,
           attempts_remaining: attempts_remaining,
           active_access_grants: profile.lesson_access_grants.currently_active.where(academic_year: enrollment.academic_year).count
         },
-        subjects: Branch.where(academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id)
-          .visible.includes(chapters: { lessons: :lectures }).ordered.map do |branch|
-            lecture_ids = branch.chapters.flat_map(&:lessons).flat_map(&:lectures).select(&:published?).map(&:id)
+        subjects: branches.map do |branch|
+            lecture_ids = lecture_ids_by_branch.fetch(branch.id)
             {
               id: branch.id, title: branch.title, total_lectures: lecture_ids.length,
               completed_lectures: (lecture_ids & completed_ids).length

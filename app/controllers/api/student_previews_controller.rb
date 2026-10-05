@@ -10,14 +10,13 @@ module Api
       return render json: { preview: empty_preview(user) } unless enrollment
 
       branches = Branch.where(academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id)
-        .visible.includes(chapters: { lessons: :lectures }).ordered
+        .visible.ordered
       completed_ids = profile.lecture_watch_events.where.not(completed_at: nil).distinct.pluck(:lecture_id)
       subjects = branches.map do |branch|
-        lectures = branch.chapters.select(&:published?).flat_map(&:lessons).select(&:published?)
-          .flat_map(&:lectures).select(&:published?)
+        lecture_ids = Curriculum::StudentLectureIds.for_branch(branch)
         {
-          id: branch.id, title: branch.title, total_lectures: lectures.size,
-          completed_lectures: (lectures.map(&:id) & completed_ids).size
+          id: branch.id, title: branch.title, total_lectures: lecture_ids.size,
+          completed_lectures: (lecture_ids & completed_ids).size
         }
       end
 

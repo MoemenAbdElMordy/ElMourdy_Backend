@@ -28,6 +28,25 @@ class Api::DashboardsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 25, response.parsed_body.dig("dashboard", "continue_watching", "progress_percent")
   end
 
+  test "student dashboard counts a lecture presented in a folder even when its legacy lesson is hidden" do
+    year, grade, branch, _chapter, lesson = create_curriculum
+    lesson.update!(status: :hidden)
+    lecture = lesson.lectures.create!(title: "Folder-only lecture", position: 1, status: :published, is_free: true)
+    CurriculumNode.create!(branch:, kind: "lecture", title: lecture.title, lecture:, position: 1)
+    student = create_student
+    StudentEnrollment.create!(student_profile: student, academic_year: year, grade:, enrolled_at: Time.current)
+    device = student.device_registrations.create!(
+      device_fingerprint_digest: Security::DigestValue.call(SecureRandom.hex(8)), status: :active
+    )
+    token = Sessions::Start.call(user: student.user, device_registration: device).raw_token
+
+    get "/api/dashboard", headers: auth(token)
+
+    assert_response :success
+    assert_equal 1, response.parsed_body.dig("dashboard", "statistics", "total_lectures")
+    assert_equal 1, response.parsed_body.dig("dashboard", "subjects", 0, "total_lectures")
+  end
+
   test "teacher dashboard returns real student and content totals" do
     teacher = create_user(role: :teacher)
     create_student
