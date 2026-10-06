@@ -20,7 +20,7 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
 
   test "teacher creates and completes a local direct upload" do
     post api_lecture_video_upload_url(@lecture), params: {
-      filename: "lecture.mp4", content_type: "video/mp4", size_bytes: 12
+      filename: "lecture.mp4", content_type: "video/mp4", size_bytes: 15
     }, headers: authorization(@teacher_token), as: :json
 
     assert_response :created
@@ -37,6 +37,40 @@ class Api::VideosControllerTest < ActionDispatch::IntegrationTest
     assert_enqueued_with(job: VideoProcessingJob, args: [ asset.id ]) do
       post complete_api_lecture_video_upload_url(@lecture),
         params: { video_asset_id: asset.id }, headers: authorization(@teacher_token), as: :json
+    end
+    assert_response :accepted
+  end
+
+  test "chunked upload resumes without duplicating bytes and rejects incomplete completion" do
+    post api_lecture_video_upload_url(@lecture), params: {
+      filename: "lecture.mp4", content_type: "video/mp4", size_bytes: 12
+    }, headers: authorization(@teacher_token), as: :json
+    assert_response :created
+    body = response.parsed_body
+    asset = VideoAsset.find(body.dig("video_asset", "id"))
+    @prefixes << File.dirname(File.dirname(asset.original_file_key))
+
+    patch URI(body.dig("upload", "chunk_url")).request_uri, params: "hello ",
+      headers: authorization(@teacher_token).merge("Content-Type" => "application/octet-stream", "X-Upload-Offset" => "0")
+    assert_response :success
+    assert_equal 6, response.parsed_body["uploaded_bytes"]
+
+    post complete_api_lecture_video_upload_url(@lecture), params: { video_asset_id: asset.id },
+      headers: authorization(@teacher_token), as: :json
+    assert_response :unprocessable_entity
+    assert_nil @lecture.reload.selected_video_asset_id
+
+    get URI(body.dig("upload", "status_url")).request_uri, headers: authorization(@teacher_token)
+    assert_equal 6, response.parsed_body["uploaded_bytes"]
+
+    patch URI(body.dig("upload", "chunk_url")).request_uri, params: "world!",
+      headers: authorization(@teacher_token).merge("Content-Type" => "application/octet-stream", "X-Upload-Offset" => "6")
+    assert_response :success
+    assert_equal 12, response.parsed_body["uploaded_bytes"]
+
+    assert_enqueued_with(job: VideoProcessingJob, args: [ asset.id ]) do
+      post complete_api_lecture_video_upload_url(@lecture), params: { video_asset_id: asset.id },
+        headers: authorization(@teacher_token), as: :json
     end
     assert_response :accepted
   end

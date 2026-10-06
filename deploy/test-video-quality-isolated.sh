@@ -5,7 +5,7 @@ stamp=$(date -u +%Y%m%d%H%M%S)
 db="mourdy-video-test-db-$stamp"
 app="mourdy-video-test-app-$stamp"
 cd /srv/elmourdy
-image=$(docker compose --env-file .env.production -f compose.production.yml images -q app)
+image=$(docker image inspect elmourdy-app --format '{{.Id}}')
 test -n "$image"
 docker run -d --name "$db" --network none --memory 1g \
   -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -e MYSQL_DATABASE=el_mourdy_backend_test mysql:8.4 >/dev/null

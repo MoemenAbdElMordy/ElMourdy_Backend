@@ -16,4 +16,4 @@ docker compose --env-file .env.production -f compose.production.yml exec -T db \
   | gzip -9 > "${backup_dir}/database-${timestamp}.sql.gz"
 
 chmod 600 "${backup_dir}/database-${timestamp}.sql.gz"
-find "$backup_dir" -type f -name "database-*.sql.gz" -mtime +7 -delete
+# Backups are retained until an operator explicitly reviews retention.

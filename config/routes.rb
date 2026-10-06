@@ -73,6 +73,8 @@ Rails.application.routes.draw do
       resource :thumbnail, only: %i[show update destroy], controller: :lecture_thumbnails
       resource :video_upload, only: %i[create] do
         put :content
+        get :status
+        patch :chunk
         post :complete
         post :youtube
         post :reuse
