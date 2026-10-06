@@ -153,6 +153,9 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
       exam: homework, attempt_number: 1, status: :submitted, started_at: 20.minutes.ago,
       submitted_at: 10.minutes.ago, score_points: 1, max_points: 1, percent: 100, result_status: :passed
     )
+    question = homework.exam_questions.first
+    attempt.exam_answers.create!(exam_question: question, selected_choice: question.exam_choices.find_by!(is_correct: true),
+      is_correct: true, points_awarded: 1)
 
     get "/api/students/#{student.user_id}", headers: authorization_header(@token)
 
@@ -165,6 +168,9 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "submitted", homework_report["status"]
     assert_equal 100.0, homework_report["best_percent"]
     assert_equal "homework", payload.fetch("attempts").find { |item| item["id"] == attempt.id }["assessment_type"]
+    answer = payload.fetch("attempts").find { |item| item["id"] == attempt.id }.fetch("answers").first
+    assert_equal "Question", answer.fetch("question")
+    assert_equal "Correct", answer.fetch("selected_choice")
   end
 
   test "changes enrollment and resets password while ending active sessions" do
