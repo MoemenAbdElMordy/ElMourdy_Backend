@@ -31,6 +31,23 @@ class Api::AcademicYearsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "content assistant can list years but cannot change them" do
+    assistant = create_user(role: :assistant)
+    profile = AssistantProfile.create!(user: assistant)
+    profile.assistant_permissions.create!(permission_key: "manage_content", enabled: true)
+    token = Sessions::Start.call(user: assistant).raw_token
+    year, = create_academic_setup
+
+    get "/api/academic_years", headers: authorization_header(token)
+    assert_response :success
+    assert_includes response.parsed_body.fetch("academic_years").map { |item| item.fetch("id") }, year.id
+
+    post "/api/academic_years", params: { academic_year: {
+      name: "2030/2031", starts_on: "2030-09-01", ends_on: "2031-08-31"
+    } }, headers: authorization_header(token), as: :json
+    assert_response :forbidden
+  end
+
   test "year list includes a summary for each secondary grade" do
     teacher = create_user(role: :teacher)
     token = Sessions::Start.call(user: teacher).raw_token

@@ -1,7 +1,7 @@
 module Api
   class AcademicYearsController < ApplicationController
     before_action :authenticate_user!
-    before_action -> { require_teacher_or_assistant_permission!("manage_academic_years") }
+    before_action :authorize_year_access!
 
     def index
       render json: {
@@ -99,6 +99,15 @@ module Api
     end
 
     private
+
+    def authorize_year_access!
+      if action_name == "index" && current_user.assistant? &&
+          current_user.assistant_profile&.assistant_permissions&.where(enabled: true, permission_key: "manage_content")&.exists?
+        return
+      end
+
+      require_teacher_or_assistant_permission!("manage_academic_years")
+    end
 
     def year_params
       params.require(:academic_year).permit(:name, :starts_on, :ends_on, :status)

@@ -1,0 +1,10 @@
+ARG BASE_IMAGE=elmourdy-app:latest
+FROM ${BASE_IMAGE}
+
+COPY app/controllers/api/academic_years_controller.rb /rails/app/controllers/api/
+COPY app/controllers/api/branches_controller.rb /rails/app/controllers/api/
+COPY app/controllers/api/chapters_controller.rb /rails/app/controllers/api/
+COPY app/controllers/api/lessons_controller.rb /rails/app/controllers/api/
+COPY app/controllers/api/lectures_controller.rb /rails/app/controllers/api/
+COPY app/controllers/api/curriculum_nodes_controller.rb /rails/app/controllers/api/
+COPY app/controllers/api/lecture_thumbnails_controller.rb /rails/app/controllers/api/

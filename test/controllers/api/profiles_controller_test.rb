@@ -76,6 +76,13 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_response :no_content
     assert user.reload.authenticate("NewValidPassword123!")
     assert other_session.reload.ended?
+
+    get "/api/session", headers: authorization_header(current_token)
+    assert_response :success
+    post "/api/session", params: { session: { phone: user.phone_e164, password: "ValidPassword123!" } }, as: :json
+    assert_response :unauthorized
+    post "/api/session", params: { session: { phone: user.phone_e164, password: "NewValidPassword123!" } }, as: :json
+    assert_response :created
   end
 
   test "rejects unauthenticated profile access" do

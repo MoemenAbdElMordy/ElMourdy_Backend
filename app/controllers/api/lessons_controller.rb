@@ -2,6 +2,7 @@ module Api
   class LessonsController < ApplicationController
     before_action :authenticate_user!
     before_action -> { require_teacher_or_assistant_permission!("manage_content") }
+    before_action :require_teacher!
 
     def create
       lesson = Lesson.create!(lesson_params.merge(position: lesson_params[:position].presence || next_position))

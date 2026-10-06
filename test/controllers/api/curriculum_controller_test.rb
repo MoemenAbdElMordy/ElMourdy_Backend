@@ -1,6 +1,26 @@
 require "test_helper"
 
 class Api::CurriculumControllerTest < ActionDispatch::IntegrationTest
+  test "content assistant sees lectures and viewer progress but cannot edit them" do
+    year, grade, _branch, _chapter, lesson = create_curriculum
+    lecture = lesson.lectures.create!(title: "Visible lecture", position: 1, status: :published, duration_seconds: 600)
+    assistant = create_user(role: :assistant)
+    profile = AssistantProfile.create!(user: assistant)
+    profile.assistant_permissions.create!(permission_key: "manage_content", enabled: true)
+    token = Sessions::Start.call(user: assistant).raw_token
+
+    get "/api/curriculum", params: { academic_year_id: year.id, grade_id: grade.id }, headers: authorization_header(token)
+    assert_response :success
+    assert_equal "Visible lecture", response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures", 0, "title")
+
+    get "/api/lectures/#{lecture.id}/viewers", headers: authorization_header(token)
+    assert_response :success
+
+    patch "/api/lectures/#{lecture.id}", params: { lecture: { title: "Changed" } }, headers: authorization_header(token), as: :json
+    assert_response :forbidden
+    assert_equal "Visible lecture", lecture.reload.title
+  end
+
   test "teacher manages and reorders the complete curriculum hierarchy" do
     teacher = create_user(role: :teacher)
     token = Sessions::Start.call(user: teacher).raw_token

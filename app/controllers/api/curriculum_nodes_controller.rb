@@ -2,6 +2,7 @@ module Api
   class CurriculumNodesController < ApplicationController
     before_action :authenticate_user!
     before_action -> { require_teacher_or_assistant_permission!("manage_content") }
+    before_action :require_teacher!
 
     def create
       node = tree.create_folder(

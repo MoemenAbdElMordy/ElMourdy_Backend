@@ -22,7 +22,7 @@ module Api
     end
 
     def update
-      require_teacher_or_assistant_permission!("manage_content")
+      require_teacher!
       return if performed?
 
       content_type = request.media_type
@@ -45,7 +45,7 @@ module Api
     end
 
     def destroy
-      require_teacher_or_assistant_permission!("manage_content")
+      require_teacher!
       return if performed?
 
       storage.delete(lecture.thumbnail_key) if lecture.thumbnail_key.present?
@@ -63,7 +63,10 @@ module Api
 
     def allowed_to_view?
       return true if current_user.teacher?
-      return current_user.assistant_profile.present? if current_user.assistant?
+      if current_user.assistant?
+        permissions = current_user.assistant_profile&.assistant_permissions
+        return permissions&.where(enabled: true, permission_key: "manage_content")&.exists?
+      end
 
       Videos::Access.allowed?(user: current_user, lecture:)
     end

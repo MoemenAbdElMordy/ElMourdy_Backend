@@ -2,6 +2,7 @@ module Api
   class BranchesController < ApplicationController
     before_action :authenticate_user!
     before_action -> { require_teacher_or_assistant_permission!("manage_content") }
+    before_action :require_teacher!
 
     def create
       branch = Branch.create!(branch_params.merge(position: branch_params[:position].presence || next_position))

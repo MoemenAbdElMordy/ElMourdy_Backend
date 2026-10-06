@@ -2,6 +2,7 @@ module Api
   class ChaptersController < ApplicationController
     before_action :authenticate_user!
     before_action -> { require_teacher_or_assistant_permission!("manage_content") }
+    before_action :require_teacher!
 
     def create
       chapter = Chapter.create!(chapter_params.merge(position: chapter_params[:position].presence || next_position))

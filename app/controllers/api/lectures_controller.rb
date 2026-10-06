@@ -2,6 +2,7 @@ module Api
   class LecturesController < ApplicationController
     before_action :authenticate_user!
     before_action -> { require_teacher_or_assistant_permission!("manage_content") }
+    before_action :require_teacher!, except: :viewers
 
     def create
       lecture = Lecture.transaction do

@@ -23,8 +23,14 @@ class Api::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
     }, as: :json
     assert_response :no_content
     assert user.reload.authenticate("NewValidPassword123!")
+    assert_not user.authenticate("ValidPassword123!")
     assert active_session.session.reload.ended?
     assert OtpVerification.find(reset.fetch("password_reset_id")).consumed?
+
+    post "/api/session", params: { session: { phone: user.phone_e164, password: "ValidPassword123!" } }, as: :json
+    assert_response :unauthorized
+    post "/api/session", params: { session: { phone: user.phone_e164, password: "NewValidPassword123!" } }, as: :json
+    assert_response :created
   end
 
   test "rejects an email that does not belong to an active account" do
