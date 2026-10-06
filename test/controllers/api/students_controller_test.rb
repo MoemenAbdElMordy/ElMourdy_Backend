@@ -60,6 +60,43 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "unique.student.search@example.test", response.parsed_body.dig("students", 0, "email")
   end
 
+  test "filters by status and searches center name" do
+    matching = enrolled_student(name: "Center Student")
+    matching.update!(center_name: "Al Noor Center")
+    other = enrolled_student(name: "Other Center Student")
+    other.update!(center_name: "Different Place")
+    other.user.update!(status: :suspended)
+
+    get "/api/students", params: { query: "Noor", status: "active" }, headers: authorization_header(@token)
+    assert_response :success
+    assert_equal [matching.user_id], response.parsed_body.fetch("students").pluck("id")
+
+    get "/api/students", params: { status: "suspended" }, headers: authorization_header(@token)
+    assert_response :success
+    assert_equal [other.user_id], response.parsed_body.fetch("students").pluck("id")
+  end
+
+  test "keeps attempted assessments and watched lectures after grade changes" do
+    student = enrolled_student(name: "Historical Student")
+    homework = create_assessment(title: "Earlier Homework", type: :homework)
+    student.exam_attempts.create!(exam: homework, attempt_number: 1, status: :submitted,
+      started_at: 20.minutes.ago, submitted_at: 10.minutes.ago, score_points: 1,
+      max_points: 1, percent: 100, result_status: :passed)
+    branch = Branch.create!(academic_year: @year, grade: @grade, title: "Old Grammar", position: 1, status: :published)
+    lesson = Curriculum::LegacyAnchor.ensure_for!(branch)
+    lecture = lesson.lectures.create!(title: "Earlier Video", position: 1, status: :published,
+      video_source_type: :youtube, youtube_video_id: "abcdefghijk", duration_seconds: 100)
+    student.lecture_watch_events.create!(lecture:, started_at: 10.minutes.ago,
+      watched_seconds: 50, last_position_seconds: 55)
+    student.student_enrollments.active.update_all(status: StudentEnrollment.statuses[:transferred])
+
+    get "/api/students/#{student.user_id}", headers: authorization_header(@token)
+    assert_response :success
+    report = response.parsed_body.fetch("student")
+    assert_includes report.fetch("assessments").pluck("id"), homework.id
+    assert_includes report.fetch("video_progress").pluck("lecture_id"), lecture.id
+  end
+
   test "returns watched and unwatched video progress for the enrolled curriculum" do
     student = enrolled_student(name: "Progress Student")
     branch = Branch.create!(academic_year: @year, grade: @grade, title: "Grammar", position: 1, status: :published)

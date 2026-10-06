@@ -9,10 +9,7 @@ module Api
       only: :destroy_device
 
     def index
-      users = User.student.includes(student_profile: { student_enrollments: %i[grade academic_year] })
-      users = users.where(status: params[:status]) if User.statuses.key?(params[:status])
-      users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query OR users.email LIKE :query", query: "%#{params[:query]}%") if params[:query].present?
-      users = users.joins(student_profile: :student_enrollments).where(student_enrollments: { grade_id: params[:grade_id] }).distinct if params[:grade_id].present?
+      users = filtered_students.includes(student_profile: { student_enrollments: %i[grade academic_year] })
 
       users, pagination = paginate(users.order(created_at: :desc))
       render json: { students: users.map { |user| serialize_student(user) }, pagination: }
@@ -113,7 +110,13 @@ module Api
     def filtered_students
       users = User.student
       users = users.where(status: params[:status]) if User.statuses.key?(params[:status])
-      users = users.where("users.name LIKE :query OR users.phone_e164 LIKE :query OR users.email LIKE :query", query: "%#{params[:query]}%") if params[:query].present?
+      if params[:query].present?
+        query = "%#{ActiveRecord::Base.sanitize_sql_like(params[:query].strip)}%"
+        users = users.left_joins(:student_profile).where(
+          "users.name LIKE :query OR users.phone_e164 LIKE :query OR users.email LIKE :query OR student_profiles.center_name LIKE :query",
+          query:
+        )
+      end
       users = users.joins(student_profile: :student_enrollments).where(student_enrollments: { grade_id: params[:grade_id] }).distinct if params[:grade_id].present?
       users
     end
@@ -177,13 +180,21 @@ module Api
             status: device.status, last_seen_at: device.last_seen_at
           }
         end,
-        attempts: profile.exam_attempts.includes(:exam).recent.limit(100).map do |attempt|
+        attempts: profile.exam_attempts.includes(:exam, exam_answers: [ :selected_choice, { exam_question: :exam_choices } ]).recent.limit(100).map do |attempt|
           {
             id: attempt.id, exam_id: attempt.exam_id, exam_title: attempt.exam.title,
             assessment_type: attempt.exam.assessment_type, attempt_number: attempt.attempt_number,
             status: attempt.status, score_points: attempt.score_points, max_points: attempt.max_points,
             percent: attempt.percent, result_status: attempt.result_status, started_at: attempt.started_at,
-            submitted_at: attempt.submitted_at
+            submitted_at: attempt.submitted_at,
+            answers: attempt.exam_answers.map do |answer|
+              {
+                question: answer.exam_question.body,
+                selected_choice: answer.selected_choice&.body,
+                correct_choice: answer.exam_question.exam_choices.find(&:is_correct?)&.body,
+                is_correct: answer.is_correct
+              }
+            end
           }
         end,
         progress: {
@@ -197,14 +208,17 @@ module Api
     end
 
     def assessment_progress(profile, enrollment)
-      return [] unless enrollment
-
-      direct_ids = Exam.where(academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id).select(:id)
-      assigned_ids = ExamGradeAssignment.where(grade_id: enrollment.grade_id).select(:exam_id)
-      exams = Exam.published.where(academic_year_id: enrollment.academic_year_id)
-        .where(id: direct_ids).or(
-          Exam.published.where(academic_year_id: enrollment.academic_year_id, id: assigned_ids)
-        ).includes(:exam_questions, :branch, lesson: { chapter: :branch }, chapter: :branch).order(created_at: :desc)
+      current_ids = if enrollment
+        direct_ids = Exam.where(academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id).select(:id)
+        assigned_ids = ExamGradeAssignment.where(grade_id: enrollment.grade_id).select(:exam_id)
+        Exam.published.where(academic_year_id: enrollment.academic_year_id)
+          .where(id: direct_ids).or(Exam.published.where(academic_year_id: enrollment.academic_year_id, id: assigned_ids)).pluck(:id)
+      else
+        []
+      end
+      attempted_ids = profile.exam_attempts.distinct.pluck(:exam_id)
+      exams = Exam.where(id: (current_ids + attempted_ids).uniq)
+        .includes(:exam_questions, :branch, lesson: { chapter: :branch }, chapter: :branch).order(created_at: :desc)
       attempts = profile.exam_attempts.where(exam_id: exams.map(&:id)).group_by(&:exam_id)
 
       exams.map do |exam|
@@ -239,18 +253,24 @@ module Api
     end
 
     def video_progress(profile, enrollment)
-      return [] unless enrollment
-
-      lesson_ids = Lesson.joins(chapter: :branch).where(
-        branches: { academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id }
-      ).select(:id)
-      lecture_ids = Lecture.where(lesson_id: lesson_ids)
-        .or(Lecture.where(id: LecturePlacement.where(lesson_id: lesson_ids).select(:lecture_id))).select(:id)
-      lectures = Lecture.published
-        .where("lectures.publish_at IS NULL OR lectures.publish_at <= ?", Time.current)
-        .where(id: lecture_ids)
+      current_ids = if enrollment
+        branch_filter = { academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id }
+        lesson_ids = Lesson.joins(chapter: :branch).where(branches: branch_filter).select(:id)
+        legacy_ids = Lecture.where(lesson_id: lesson_ids)
+          .or(Lecture.where(id: LecturePlacement.where(lesson_id: lesson_ids).select(:lecture_id))).pluck(:id)
+        node_ids = CurriculumNode.joins(:branch).where(branches: branch_filter).where.not(lecture_id: nil).pluck(:lecture_id)
+        (legacy_ids + node_ids).uniq
+      else
+        []
+      end
+      past_ids = profile.lecture_watch_events.distinct.pluck(:lecture_id)
+      lectures = Lecture.where(id: (current_ids + past_ids).uniq)
         .includes(:selected_video_asset, :video_assets, lesson: { chapter: :branch }).distinct.order(:position)
-        .select { |lecture| lecture.video_source_type_youtube? || lecture.effective_video_asset.present? }
+        .select do |lecture|
+          past_ids.include?(lecture.id) || (current_ids.include?(lecture.id) && lecture.published? &&
+            (lecture.publish_at.nil? || lecture.publish_at <= Time.current) &&
+            (lecture.video_source_type_youtube? || lecture.effective_video_asset.present?))
+        end
 
       events = profile.lecture_watch_events.where(lecture_id: lectures.map(&:id))
       watched_seconds = events.group(:lecture_id).sum(:watched_seconds)
@@ -258,16 +278,16 @@ module Api
       last_watched = events.group(:lecture_id).maximum(:updated_at)
       completed_ids = events.where.not(completed_at: nil).distinct.pluck(:lecture_id).to_set
       presentation_nodes = CurriculumNode.where(lecture_id: lectures.map(&:id))
-        .joins(:branch).where(branches: {
-          academic_year_id: enrollment.academic_year_id, grade_id: enrollment.grade_id
-        }).includes(:branch, :parent).group_by(&:lecture_id)
+        .includes(:branch, :parent).group_by(&:lecture_id)
 
       lectures.map do |lecture|
         duration = lecture.effective_duration_seconds.to_i
         watched = watched_seconds.fetch(lecture.id, 0)
         completed = completed_ids.include?(lecture.id)
         percent = completed ? 100 : (duration.positive? ? [ (watched.to_f / duration * 100).round, 100 ].min : 0)
-        node = presentation_nodes[lecture.id]&.first
+        node = presentation_nodes[lecture.id]&.find do |candidate|
+          enrollment && candidate.branch.academic_year_id == enrollment.academic_year_id && candidate.branch.grade_id == enrollment.grade_id
+        end || presentation_nodes[lecture.id]&.first
         folders = []
         cursor = node&.parent
         while cursor
