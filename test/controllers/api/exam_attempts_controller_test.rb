@@ -1,6 +1,19 @@
 require "test_helper"
 
 class Api::ExamAttemptsControllerTest < ActionDispatch::IntegrationTest
+  test "teacher searches an exam's attempts by center" do
+    exam = create_exam
+    student = enrolled_student(exam)
+    student.update!(center_name: "Victory Center")
+    ExamAttempts::Start.call(exam:, student_profile: student)
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+
+    get "/api/exam_attempts", params: { exam_id: exam.id, query: "Victory" }, headers: auth(token)
+    assert_response :success
+    assert_equal [student.id], response.parsed_body.fetch("attempts").pluck("student_profile_id")
+    assert_equal "Victory Center", response.parsed_body.dig("attempts", 0, "center_name")
+  end
   test "student completes an exam and receives automatic grading" do
     exam = create_exam
     student = enrolled_student(exam)

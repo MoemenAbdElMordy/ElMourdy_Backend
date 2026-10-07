@@ -33,6 +33,12 @@ module Api
       profiles = StudentProfile.joins(:student_enrollments)
         .where(student_enrollments: { academic_year_id: exam.academic_year_id, grade_id: grade_ids,
           status: StudentEnrollment.statuses.fetch("active") }).distinct.includes(:user).order(:id)
+      if params[:query].present?
+        query = "%#{ActiveRecord::Base.sanitize_sql_like(params[:query].strip)}%"
+        profiles = profiles.joins(:user).where(
+          "users.name LIKE :query OR users.phone_e164 LIKE :query OR student_profiles.center_name LIKE :query", query:
+        )
+      end
       profiles, pagination = paginate(profiles)
       attempts = ExamAttempt.where(exam_id: exam.id, student_profile_id: profiles.map(&:id))
         .group_by(&:student_profile_id)
@@ -43,12 +49,18 @@ module Api
         latest = rows.max_by(&:started_at)
         {
           student_id: profile.user_id, name: profile.user.name,
+          phone: profile.user.phone_e164, center_name: profile.center_name,
           status: submitted.any? ? "submitted" : rows.any? ? "in_progress" : "not_started",
           attempts_count: rows.size,
           submitted_attempts_count: submitted.size,
           best_percent: submitted.filter_map { |row| row.percent&.to_f }.max,
           latest_percent: latest&.percent&.to_f,
-          last_activity_at: rows.map { |row| row.submitted_at || row.updated_at }.compact.max
+          last_activity_at: rows.map { |row| row.submitted_at || row.updated_at }.compact.max,
+          attempts: rows.sort_by(&:attempt_number).map { |row|
+            { id: row.id, attempt_number: row.attempt_number, status: row.status,
+              percent: row.percent&.to_f, result_status: row.result_status,
+              started_at: row.started_at, submitted_at: row.submitted_at }
+          }
         }
       }, pagination: }
     end

@@ -19,6 +19,29 @@ class Api::ExamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, item.fetch("attempts_count")
   end
 
+  test "progress searches all pages by student phone and center" do
+    exam = create_exam
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    matching = create_student
+    matching.update!(center_name: "Future Academy")
+    matching.user.update!(name: "Matched Student")
+    other = create_student
+    [matching, other].each do |profile|
+      StudentEnrollment.create!(student_profile: profile, academic_year: exam.academic_year,
+        grade: exam.grade, status: :active, enrolled_at: Time.current)
+    end
+
+    get "/api/exams/#{exam.id}/progress", params: { query: "Future" }, headers: auth(token)
+    assert_response :success
+    assert_equal [matching.user_id], response.parsed_body.fetch("students").pluck("student_id")
+    assert_equal "Future Academy", response.parsed_body.dig("students", 0, "center_name")
+
+    get "/api/exams/#{exam.id}/progress", params: { query: matching.user.phone_e164 }, headers: auth(token)
+    assert_response :success
+    assert_equal [matching.user_id], response.parsed_body.fetch("students").pluck("student_id")
+  end
+
   test "homework progress requires homework permission" do
     homework = create_exam
     homework.update!(assessment_type: :homework)

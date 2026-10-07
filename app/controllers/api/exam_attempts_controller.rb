@@ -8,6 +8,12 @@ module Api
 
       attempts = attempts.where(exam_id: params[:exam_id]) if params[:exam_id].present?
       attempts = attempts.where(student_profile_id: params[:student_profile_id]) if params[:student_profile_id].present?
+      if params[:query].present?
+        query = "%#{ActiveRecord::Base.sanitize_sql_like(params[:query].strip)}%"
+        attempts = attempts.joins(student_profile: :user).where(
+          "users.name LIKE :query OR users.phone_e164 LIKE :query OR student_profiles.center_name LIKE :query", query:
+        )
+      end
       attempts, pagination = paginate(attempts.includes(:exam, student_profile: :user).recent)
       render json: { attempts: attempts.map { |attempt| serialize_summary(attempt) }, pagination: }
     end
@@ -115,6 +121,8 @@ module Api
         id: attempt.id, exam_id: attempt.exam_id, exam_title: attempt.exam.title,
         assessment_type: attempt.exam.assessment_type,
         student_profile_id: attempt.student_profile_id, student_name: attempt.student_profile.user.name,
+        student_id: attempt.student_profile.user_id, student_phone: attempt.student_profile.user.phone_e164,
+        center_name: attempt.student_profile.center_name,
         attempt_number: attempt.attempt_number, status: attempt.status, started_at: attempt.started_at,
         submitted_at: attempt.submitted_at, score_points: attempt.score_points, max_points: attempt.max_points,
         percent: attempt.percent, result_status: attempt.result_status

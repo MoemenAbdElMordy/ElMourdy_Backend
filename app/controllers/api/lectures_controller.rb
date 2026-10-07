@@ -32,9 +32,21 @@ module Api
     end
 
     def viewers
-      profiles = StudentProfile.joins(:lecture_watch_events)
-        .where(lecture_watch_events: { lecture_id: lecture.id }).distinct
+      branch_ids = lecture.curriculum_nodes.pluck(:branch_id)
+      branch_ids += lecture.all_lessons.joins(chapter: :branch).pluck("branches.id")
+      enrollments = StudentEnrollment.active.none
+      Branch.where(id: branch_ids.uniq).pluck(:academic_year_id, :grade_id).uniq.each do |year_id, grade_id|
+        enrollments = enrollments.or(StudentEnrollment.active.where(academic_year_id: year_id, grade_id: grade_id))
+      end
+      profiles = StudentProfile.where(id: enrollments.select(:student_profile_id))
+        .or(StudentProfile.where(id: LectureWatchEvent.where(lecture_id: lecture.id).select(:student_profile_id)))
         .includes(:user).order(:id)
+      if params[:query].present?
+        query = "%#{ActiveRecord::Base.sanitize_sql_like(params[:query].strip)}%"
+        profiles = profiles.joins(:user).where(
+          "users.name LIKE :query OR users.phone_e164 LIKE :query OR student_profiles.center_name LIKE :query", query:
+        )
+      end
       profiles, pagination = paginate(profiles)
       events = LectureWatchEvent.where(lecture_id: lecture.id, student_profile_id: profiles.map(&:id))
         .order(:updated_at, :id).group_by(&:student_profile_id)
@@ -48,6 +60,7 @@ module Api
         percent = 100 if watched.any? { |event| event.completed_at.present? }
         {
           student_id: profile.user_id, name: profile.user.name,
+          phone: profile.user.phone_e164, center_name: profile.center_name,
           watched_seconds: seconds, duration_seconds: duration,
           last_position_seconds: latest&.last_position_seconds.to_i,
           progress_percent: percent,
