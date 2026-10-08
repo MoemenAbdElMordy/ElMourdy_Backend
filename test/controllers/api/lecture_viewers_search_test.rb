@@ -14,7 +14,7 @@ class Api::LectureViewersSearchTest < ActionDispatch::IntegrationTest
       status: :active, enrolled_at: Time.current)
     [matching, other].each do |profile|
       profile.lecture_watch_events.create!(lecture:, started_at: Time.current,
-        watched_seconds: 30, last_position_seconds: 30)
+        watched_seconds: profile == other ? 80 : 30, last_position_seconds: profile == other ? 80 : 30)
     end
     teacher = create_user(role: :teacher)
     token = Sessions::Start.call(user: teacher).raw_token
@@ -33,5 +33,17 @@ class Api::LectureViewersSearchTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal [not_started.user_id], response.parsed_body.fetch("viewers").pluck("student_id")
     assert_equal "not_watched", response.parsed_body.dig("viewers", 0, "status")
+
+    get "/api/lectures/#{lecture.id}/viewers", params: { watch_status: "not_watched" }, headers: headers
+    assert_response :success
+    assert_equal [not_started.user_id], response.parsed_body.fetch("viewers").pluck("student_id")
+
+    get "/api/lectures/#{lecture.id}/viewers", params: { watch_status: "watched" }, headers: headers
+    assert_response :success
+    assert_equal [other.user_id], response.parsed_body.fetch("viewers").pluck("student_id")
+
+    get "/api/lectures/#{lecture.id}/viewers", params: { watch_status: "partial", query: "Bright" }, headers: headers
+    assert_response :success
+    assert_equal [matching.user_id], response.parsed_body.fetch("viewers").pluck("student_id")
   end
 end

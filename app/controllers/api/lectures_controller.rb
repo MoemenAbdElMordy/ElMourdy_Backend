@@ -47,10 +47,29 @@ module Api
           "users.name LIKE :query OR users.phone_e164 LIKE :query OR student_profiles.center_name LIKE :query", query:
         )
       end
+      duration = lecture.effective_duration_seconds.to_i
+      if %w[watched partial not_watched].include?(params[:watch_status])
+        watched_seconds = LectureWatchEvent.where(lecture_id: lecture.id).group(:student_profile_id).sum(:watched_seconds)
+        completed_ids = LectureWatchEvent.where(lecture_id: lecture.id).where.not(completed_at: nil)
+          .distinct.pluck(:student_profile_id).to_set
+        watched_ids = watched_seconds.keys.select do |profile_id|
+          completed_ids.include?(profile_id) || (duration.positive? &&
+            (watched_seconds.fetch(profile_id).to_f / duration * 100).round >= 75)
+        end
+        partial_ids = watched_seconds.keys.select do |profile_id|
+          next false if watched_ids.include?(profile_id)
+
+          duration.positive? && (watched_seconds.fetch(profile_id).to_f / duration * 100).round >= 20
+        end
+        profiles = case params[:watch_status]
+        when "watched" then profiles.where(id: watched_ids)
+        when "partial" then profiles.where(id: partial_ids)
+        else profiles.where.not(id: watched_ids + partial_ids)
+        end
+      end
       profiles, pagination = paginate(profiles)
       events = LectureWatchEvent.where(lecture_id: lecture.id, student_profile_id: profiles.map(&:id))
         .order(:updated_at, :id).group_by(&:student_profile_id)
-      duration = lecture.effective_duration_seconds.to_i
 
       render json: { viewers: profiles.map { |profile|
         watched = events.fetch(profile.id, [])

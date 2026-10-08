@@ -42,6 +42,34 @@ class Api::ExamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [matching.user_id], response.parsed_body.fetch("students").pluck("student_id")
   end
 
+  test "progress filters unstarted pending submitted passed and not passed students" do
+    exam = create_exam
+    profiles = 4.times.map { create_student }
+    profiles.each do |profile|
+      StudentEnrollment.create!(student_profile: profile, academic_year: exam.academic_year,
+        grade: exam.grade, status: :active, enrolled_at: Time.current)
+    end
+    profiles[1].exam_attempts.create!(exam:, attempt_number: 1, status: :in_progress, started_at: Time.current)
+    [ [2, :passed, 100], [3, :failed, 0] ].each do |index, result, percent|
+      profiles[index].exam_attempts.create!(exam:, attempt_number: 1, status: :submitted,
+        started_at: 10.minutes.ago, submitted_at: Time.current, score_points: percent == 100 ? 2 : 0,
+        max_points: 2, percent:, result_status: result)
+    end
+    teacher = create_user(role: :teacher)
+    headers = auth(Sessions::Start.call(user: teacher).raw_token)
+    expected = {
+      "not_started" => [profiles[0].user_id], "in_progress" => [profiles[1].user_id],
+      "submitted" => [profiles[2].user_id, profiles[3].user_id],
+      "passed" => [profiles[2].user_id], "not_passed" => [profiles[3].user_id]
+    }
+    expected.each do |filter, user_ids|
+      get "/api/exams/#{exam.id}/progress", params: { progress_status: filter }, headers: headers
+      assert_response :success
+      assert_equal user_ids.sort, response.parsed_body.fetch("students").pluck("student_id").sort
+      assert_equal user_ids.length, response.parsed_body.dig("pagination", "total_count")
+    end
+  end
+
   test "homework progress requires homework permission" do
     homework = create_exam
     homework.update!(assessment_type: :homework)

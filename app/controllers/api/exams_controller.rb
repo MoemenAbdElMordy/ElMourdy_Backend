@@ -39,6 +39,18 @@ module Api
           "users.name LIKE :query OR users.phone_e164 LIKE :query OR student_profiles.center_name LIKE :query", query:
         )
       end
+      if %w[not_started in_progress submitted passed not_passed].include?(params[:progress_status])
+        started_ids = ExamAttempt.where(exam_id: exam.id).select(:student_profile_id)
+        submitted_ids = ExamAttempt.submitted.where(exam_id: exam.id).select(:student_profile_id)
+        passed_ids = ExamAttempt.submitted.passed.where(exam_id: exam.id).select(:student_profile_id)
+        profiles = case params[:progress_status]
+        when "not_started" then profiles.where.not(id: started_ids)
+        when "in_progress" then profiles.where(id: started_ids).where.not(id: submitted_ids)
+        when "submitted" then profiles.where(id: submitted_ids)
+        when "passed" then profiles.where(id: passed_ids)
+        else profiles.where(id: submitted_ids).where.not(id: passed_ids)
+        end
+      end
       profiles, pagination = paginate(profiles)
       attempts = ExamAttempt.where(exam_id: exam.id, student_profile_id: profiles.map(&:id))
         .group_by(&:student_profile_id)
