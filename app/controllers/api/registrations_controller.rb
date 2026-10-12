@@ -47,9 +47,9 @@ module Api
 
     def resend
       user = pending_user
-      result = EmailVerifications::Request.call(
+      result = RegistrationVerifications::Request.call(
         purpose: user.student? ? :student_registration : :parent_registration,
-        user:
+        user:, channel: params[:channel]
       )
 
       render json: verification_payload(user, result)
@@ -104,7 +104,8 @@ module Api
         phone: user.phone_e164,
         expires_at: result.verification.expires_at,
         resend_after_seconds: EmailVerifications::Request::RESEND_DELAY.to_i,
-        verification_method: "email",
+        verification_method: result.verification.metadata["channel"],
+        telegram_available: ENV["TELEGRAM_GATEWAY_TOKEN"].present?,
         email_hint: masked_email(user.email),
         client_token: result.client_token
       }

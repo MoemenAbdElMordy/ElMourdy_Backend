@@ -8,6 +8,7 @@ This service owns authentication, authorization, academic data, examinations, pr
 
 - Secure phone-and-password authentication with revocable database sessions
 - Student and parent registration with provider-neutral verification workflows
+- Optional Telegram Gateway delivery for registration codes; email remains the fallback when unavailable
 - Password recovery and verification status polling
 - Role-based authorization for students, parents, teachers, and assistants
 - Granular assistant permissions enforced by the API
@@ -26,6 +27,8 @@ This service owns authentication, authorization, academic data, examinations, pr
 - WhatsApp Cloud API integration points and verified webhook handling
 
 Payment processing is intentionally outside the current product scope.
+
+Telegram Gateway is opt-in: set `TELEGRAM_GATEWAY_TOKEN` as a server-side secret, then let users explicitly choose Telegram on the verification screen. Email remains the default. If Telegram delivery fails, the user can continue with email. Password recovery remains email-based. A real Gateway account, balance, and live-number test are required before enabling it in production. Never expose the token to the frontend or commit it.
 
 ## Technology Stack
 

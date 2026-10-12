@@ -14,7 +14,7 @@ module Registrations
     def call
       validate_role!
       user = create_user_and_profile
-      result = EmailVerifications::Request.call(
+      result = RegistrationVerifications::Request.call(
         purpose: purpose,
         user:
       )

@@ -5,7 +5,7 @@ module Api
     def create
       raise ApplicationService::Error, "Account is already verified" if current_user.phone_verified_at.present?
 
-      result = EmailVerifications::Request.call(user: current_user, purpose: registration_purpose)
+      result = RegistrationVerifications::Request.call(user: current_user, purpose: registration_purpose, channel: params[:channel])
       render json: verification_payload(result), status: :created
     end
 
@@ -48,6 +48,8 @@ module Api
     def verification_payload(result)
       {
         verification_id: result.verification.id,
+        verification_method: result.verification.metadata["channel"],
+        telegram_available: ENV["TELEGRAM_GATEWAY_TOKEN"].present?,
         email_hint: masked_email(current_user.email),
         expires_at: result.verification.expires_at,
         resend_after_seconds: EmailVerifications::Request::RESEND_DELAY.to_i
