@@ -37,6 +37,15 @@ module ActivationCodes
         branches: { academic_year_id: enrollment&.academic_year_id, grade_id: enrollment&.grade_id }
       )
       raise Error, "This lecture is not available for the student's grade" unless enrollment && eligible_lessons.exists?
+      raise Error, "This lecture is not currently available" unless Lecture.visible.exists?(id: @lecture.id)
+      branch_ids = eligible_lessons.distinct.pluck("branches.id")
+      presentation_visible = Curriculum::PresentationVisibility.visible?(lecture: @lecture, branch_ids:)
+      if presentation_visible.nil?
+        raise Error, "This lecture is not currently available" unless
+          eligible_lessons.merge(Lesson.visible).merge(Chapter.visible).merge(Branch.visible).exists?
+      else
+        raise Error, "This lecture is not currently available" unless presentation_visible
+      end
       if @lecture.is_free? || eligible_lessons.where(is_free: true).exists? || existing_access?(eligible_lessons, enrollment)
         raise Error, "The student already has access to this lecture"
       end

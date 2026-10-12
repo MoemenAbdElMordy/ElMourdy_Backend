@@ -39,14 +39,19 @@ class Api::ActivationCodesControllerTest < ActionDispatch::IntegrationTest
     teacher = create_user(role: :teacher)
     student = create_student
     year, grade, _branch, _chapter, lesson = create_curriculum
-    lecture = Lecture.create!(lesson:, title: "Paid Lecture", position: 1, status: :published)
+    lecture = Lecture.create!(lesson:, title: "Paid Lecture", position: 1, status: :published,
+      video_source_type: :youtube, youtube_video_id: "AbCdEf12345")
     another_lecture = Lecture.create!(lesson:, title: "Another Lecture", position: 2, status: :published)
     StudentEnrollment.create!(student_profile: student, academic_year: year, grade:, status: :active, enrolled_at: Time.current)
-    raw_code = ActivationCodes::GenerateBatch.call(
-      attributes: { name: "Generic Codes", quantity: 1, expires_on: Date.current + 30.days },
-      created_by_user: teacher
-    ).raw_codes.first
+    post "/api/activation_code_batches", params: {
+      activation_code_batch: { name: "Generic Codes", quantity: 1, expires_on: Date.current + 30.days }
+    }, headers: authorization_header(Sessions::Start.call(user: teacher).raw_token), as: :json
+    assert_response :created
+    raw_code = response.parsed_body.fetch("generated_codes").first
     token = student_token(student)
+
+    get "/api/lectures/#{lecture.id}/video_playback", headers: authorization_header(token)
+    assert_response :forbidden
 
     post "/api/activation_codes/redeem", params: {
       code: raw_code, lecture_id: lecture.id
@@ -58,12 +63,79 @@ class Api::ActivationCodesControllerTest < ActionDispatch::IntegrationTest
     assert Videos::Access.allowed?(user: student.user, lecture:)
     assert_not Videos::Access.allowed?(user: student.user, lecture: another_lecture)
 
+    get "/api/lectures/#{lecture.id}/video_playback", headers: authorization_header(token)
+    assert_response :success
+    assert_equal "youtube", response.parsed_body.dig("playback", "source_type")
+    assert_equal "AbCdEf12345", response.parsed_body.dig("playback", "youtube_video_id")
+
+    get "/api/curriculum", headers: authorization_header(token)
+    assert_response :success
+    lectures = response.parsed_body.dig("curriculum", "branches", 0, "chapters", 0, "lessons", 0, "lectures")
+    assert_equal true, lectures.find { |item| item.fetch("id") == lecture.id }.fetch("has_access")
+    assert_equal false, lectures.find { |item| item.fetch("id") == another_lecture.id }.fetch("has_access")
+
     post "/api/activation_codes/redeem", params: {
       code: raw_code, lecture_id: another_lecture.id
     }, headers: authorization_header(token), as: :json
 
     assert_response :unprocessable_entity
     assert_not Videos::Access.allowed?(user: student.user, lecture: another_lecture)
+  end
+
+  test "does not consume a code for a hidden or scheduled lecture" do
+    teacher = create_user(role: :teacher)
+    student = create_student
+    year, grade, _branch, _chapter, lesson = create_curriculum
+    lecture = Lecture.create!(lesson:, title: "Unreleased Lecture", position: 1, status: :draft)
+    StudentEnrollment.create!(student_profile: student, academic_year: year, grade:, status: :active, enrolled_at: Time.current)
+    raw_code = ActivationCodes::GenerateBatch.call(
+      attributes: { name: "Future Codes", quantity: 1, expires_on: Date.current + 30.days },
+      created_by_user: teacher
+    ).raw_codes.first
+    token = student_token(student)
+
+    post "/api/activation_codes/redeem", params: { code: raw_code, lecture_id: lecture.id },
+      headers: authorization_header(token), as: :json
+    assert_response :unprocessable_entity
+    assert ActivationCode.find_by!(code_digest: Security::DigestValue.call(raw_code)).unused?
+
+    lecture.update!(status: :published, publish_at: 1.day.from_now)
+    post "/api/activation_codes/redeem", params: { code: raw_code, lecture_id: lecture.id },
+      headers: authorization_header(token), as: :json
+    assert_response :unprocessable_entity
+    assert ActivationCode.find_by!(code_digest: Security::DigestValue.call(raw_code)).unused?
+  end
+
+  test "assistant can generate and export codes only with manage codes permission" do
+    assistant = create_user(role: :assistant)
+    profile = AssistantProfile.create!(user: assistant)
+    token = Sessions::Start.call(user: assistant).raw_token
+    params = { activation_code_batch: { name: "Assistant Codes", quantity: 2, expires_on: Date.current + 30.days } }
+
+    post "/api/activation_code_batches", params:, headers: authorization_header(token), as: :json
+    assert_response :forbidden
+    assert_not ActivationCodeBatch.exists?(name: "Assistant Codes")
+
+    profile.assistant_permissions.create!(permission_key: "manage_codes", enabled: true)
+    post "/api/activation_code_batches", params:, headers: authorization_header(token), as: :json
+    assert_response :created
+    assert_equal 2, response.parsed_body.fetch("generated_codes").size
+    batch_id = response.parsed_body.dig("batch", "id")
+
+    get "/api/activation_code_batches/#{batch_id}/export", headers: authorization_header(token)
+    assert_response :success
+    assert_includes response.body, "ELM-"
+  end
+
+  test "rejects a new batch whose codes would already be expired" do
+    teacher = create_user(role: :teacher)
+    token = Sessions::Start.call(user: teacher).raw_token
+    post "/api/activation_code_batches", params: {
+      activation_code_batch: { name: "Expired Codes", quantity: 1, expires_on: Date.yesterday }
+    }, headers: authorization_header(token), as: :json
+
+    assert_response :unprocessable_entity
+    assert_not ActivationCodeBatch.exists?(name: "Expired Codes")
   end
 
   test "student redeems a matching code and cannot reuse it" do
