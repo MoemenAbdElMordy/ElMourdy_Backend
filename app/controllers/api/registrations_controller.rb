@@ -105,7 +105,7 @@ module Api
         expires_at: result.verification.expires_at,
         resend_after_seconds: EmailVerifications::Request::RESEND_DELAY.to_i,
         verification_method: result.verification.metadata["channel"],
-        telegram_available: ENV["TELEGRAM_GATEWAY_TOKEN"].present?,
+        telegram_available: TelegramGateway.enabled?,
         email_hint: masked_email(user.email),
         client_token: result.client_token
       }

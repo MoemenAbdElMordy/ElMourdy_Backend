@@ -10,14 +10,30 @@ class RegistrationVerificationsRequestTest < ActiveSupport::TestCase
       "telegram-request-123"
     end
 
-    with_env("TELEGRAM_GATEWAY_TOKEN", "test-token") do
-      with_gateway(gateway) do
-        result = RegistrationVerifications::Request.call(user:, purpose: :student_registration, channel: "telegram")
-        assert_equal "telegram", result.verification.metadata["channel"]
-        assert_equal "telegram-request-123", result.verification.metadata["gateway_request_id"]
-        assert_equal user.phone_e164, sent.first[:phone]
-        assert_match(/\A\d{6}\z/, sent.first[:code])
-        assert_equal 600, sent.first[:ttl]
+    with_env("TELEGRAM_GATEWAY_ENABLED", "true") do
+      with_env("TELEGRAM_GATEWAY_TOKEN", "test-token") do
+        with_gateway(gateway) do
+          result = RegistrationVerifications::Request.call(user:, purpose: :student_registration, channel: "telegram")
+          assert_equal "telegram", result.verification.metadata["channel"]
+          assert_equal "telegram-request-123", result.verification.metadata["gateway_request_id"]
+          assert_equal user.phone_e164, sent.first[:phone]
+          assert_match(/\A\d{6}\z/, sent.first[:code])
+          assert_equal 600, sent.first[:ttl]
+        end
+      end
+    end
+  end
+
+  test "does not offer Telegram while the account is unfunded" do
+    user = create_student.user
+
+    with_env("TELEGRAM_GATEWAY_ENABLED", nil) do
+      with_env("TELEGRAM_GATEWAY_TOKEN", "test-token") do
+        assert_not TelegramGateway.enabled?
+        assert_raises(ApplicationService::Error) do
+          RegistrationVerifications::Request.call(user:, purpose: :student_registration, channel: "telegram")
+        end
+        assert_equal 0, user.otp_verifications.count
       end
     end
   end

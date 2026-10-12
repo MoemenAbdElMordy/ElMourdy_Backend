@@ -14,6 +14,8 @@ module RegistrationVerifications
     def call
       case @channel
       when "telegram"
+        raise Error, "Telegram verification is not available" unless TelegramGateway.enabled?
+
         switching_from_email = @user.otp_verifications.pending.where(purpose: @purpose)
           .any? { |verification| verification.metadata["channel"] == "email" }
         begin

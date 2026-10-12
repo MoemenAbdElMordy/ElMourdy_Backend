@@ -49,7 +49,7 @@ module Api
       {
         verification_id: result.verification.id,
         verification_method: result.verification.metadata["channel"],
-        telegram_available: ENV["TELEGRAM_GATEWAY_TOKEN"].present?,
+        telegram_available: TelegramGateway.enabled?,
         email_hint: masked_email(current_user.email),
         expires_at: result.verification.expires_at,
         resend_after_seconds: EmailVerifications::Request::RESEND_DELAY.to_i

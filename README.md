@@ -28,7 +28,7 @@ This service owns authentication, authorization, academic data, examinations, pr
 
 Payment processing is intentionally outside the current product scope.
 
-Telegram Gateway is opt-in: set `TELEGRAM_GATEWAY_TOKEN` as a server-side secret, then let users explicitly choose Telegram on the verification screen. Email remains the default. If Telegram delivery fails, the user can continue with email. Password recovery remains email-based. A real Gateway account, balance, and live-number test are required before enabling it in production. Never expose the token to the frontend or commit it.
+Telegram Gateway is opt-in: set `TELEGRAM_GATEWAY_TOKEN` as a server-side secret, then set `TELEGRAM_GATEWAY_ENABLED=true` only after funding the Gateway account and testing delivery to a separate number. Users explicitly choose Telegram on the verification screen. Email remains the default. If Telegram delivery fails, the user can continue with email. Password recovery remains email-based. Never expose the token to the frontend or commit it.
 
 ## Technology Stack
 
