@@ -2,7 +2,9 @@ module Api
   class PasswordResetsController < ApplicationController
     def create
       email = create_params[:email].to_s.strip.downcase
-      user = User.available_for_login.find_by("LOWER(email) = ?", email)
+      # Unverified accounts can sign in to finish activation, so they must also
+      # be able to recover their password before activation is complete.
+      user = User.active.find_by("LOWER(email) = ?", email)
       raise ApplicationService::Error, "No active account uses this email address" unless user
 
       result = EmailVerifications::Request.call(user:, purpose: :password_reset)
@@ -29,14 +31,16 @@ module Api
     def update
       verification = password_reset_verification
       validate_client_token!(verification)
+      expire_verification!(verification)
 
       OtpVerification.transaction do
         verification.lock!
-        expire_verification!(verification)
+        raise ApplicationService::Error, "Verification code has expired" if verification.expires_at <= Time.current
         raise ApplicationService::Error, "Email verification is not complete" unless verification.verified?
 
         user = verification.user
         raise ApplicationService::Error, "Password reset could not be completed" unless user&.active?
+        raise ApplicationService::Error, "A new password is required" if update_params[:password].blank?
 
         user.update!(
           password: update_params[:password],

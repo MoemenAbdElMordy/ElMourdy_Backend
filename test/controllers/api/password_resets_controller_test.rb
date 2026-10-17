@@ -39,6 +39,47 @@ class Api::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
     assert_empty ActionMailer::Base.deliveries
   end
 
+  test "an unverified account can recover its password and then sign in for activation" do
+    user = create_user(role: :parent).tap do |record|
+      record.update!(email: "unverified.parent@example.test", phone_verified_at: nil)
+    end
+    ParentProfile.create!(user:, verified_parent_phone_e164: user.phone_e164)
+
+    post "/api/password_resets", params: { password_reset: { email: user.email } }, as: :json
+    assert_response :created
+    reset = response.parsed_body
+
+    post "/api/password_resets/#{reset.fetch('password_reset_id')}/verify", params: {
+      password_reset: { client_token: reset.fetch("client_token"), code: delivered_code }
+    }, as: :json
+    assert_response :success
+
+    patch "/api/password_resets/#{reset.fetch('password_reset_id')}", params: {
+      password_reset: { client_token: reset.fetch("client_token"), password: "NewValidPassword123!", password_confirmation: "NewValidPassword123!" }
+    }, as: :json
+    assert_response :no_content
+
+    post "/api/session", params: { session: { phone: user.phone_e164, password: "NewValidPassword123!" } }, as: :json
+    assert_response :created
+    assert_equal false, response.parsed_body.dig("user", "verified")
+  end
+
+  test "an expired verified code remains expired and cannot change the password" do
+    user = create_user(role: :parent).tap { |record| record.update!(email: "expired.reset@example.test") }
+    ParentProfile.create!(user:, verified_parent_phone_e164: user.phone_e164)
+    result = EmailVerifications::Request.call(user:, purpose: :password_reset)
+    OtpVerifications::Verify.call(verification: result.verification, code: delivered_code)
+    travel_to(result.verification.expires_at + 1.second) do
+      patch "/api/password_resets/#{result.verification.id}", params: {
+        password_reset: { client_token: result.client_token, password: "NewValidPassword123!", password_confirmation: "NewValidPassword123!" }
+      }, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert result.verification.reload.expired?
+    assert user.reload.authenticate("ValidPassword123!")
+  end
+
   test "rejects an invalid code and client token" do
     user = create_user(role: :student).tap { |record| record.update!(email: "reset.student@example.test") }
     StudentProfile.create!(user:, birth_date: Date.new(2008, 1, 1), parent_phone_e164: unique_phone, center_name: "Test Center")
