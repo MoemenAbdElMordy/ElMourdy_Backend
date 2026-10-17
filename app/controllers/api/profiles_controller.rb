@@ -23,6 +23,8 @@ module Api
         current_user.update!(password: new_password, password_confirmation: password_params[:password_confirmation])
         current_user.user_sessions.active.where.not(id: current_session.id)
           .update_all(status: UserSession.statuses[:ended], ended_at: Time.current, updated_at: Time.current)
+        current_user.otp_verifications.password_reset.where(status: %i[pending verified])
+          .update_all(status: OtpVerification.statuses.fetch(:expired))
       end
 
       head :no_content

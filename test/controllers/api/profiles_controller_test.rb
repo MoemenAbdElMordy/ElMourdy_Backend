@@ -64,6 +64,9 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
       started_at: Time.current,
       last_seen_at: Time.current
     )
+    user.update!(email: "profile.password@example.test")
+    reset = EmailVerifications::Request.call(user:, purpose: :password_reset)
+    OtpVerifications::Verify.call(verification: reset.verification, code: ActionMailer::Base.deliveries.last.text_part.body.decoded.match(/\d{6}/).to_s)
 
     patch "/api/profile/password", params: {
       profile: {
@@ -76,6 +79,7 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_response :no_content
     assert user.reload.authenticate("NewValidPassword123!")
     assert other_session.reload.ended?
+    assert reset.verification.reload.expired?
 
     get "/api/session", headers: authorization_header(current_token)
     assert_response :success
