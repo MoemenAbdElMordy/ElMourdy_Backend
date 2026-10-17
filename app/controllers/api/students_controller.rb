@@ -61,8 +61,11 @@ module Api
     def reset_password
       user = student_user
       password = password_params.fetch(:password)
-      user.update!(password:, password_confirmation: password)
-      user.user_sessions.active.update_all(status: UserSession.statuses[:revoked], ended_at: Time.current)
+      raise ApplicationService::Error, "A new password is required" if password.blank?
+      User.transaction do
+        user.update!(password:, password_confirmation: password)
+        user.user_sessions.active.update_all(status: UserSession.statuses[:revoked], ended_at: Time.current)
+      end
       audit!(action: "student.password_reset", target: user)
       head :no_content
     end

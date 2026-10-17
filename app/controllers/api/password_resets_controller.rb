@@ -40,10 +40,12 @@ module Api
 
         user = verification.user
         raise ApplicationService::Error, "Password reset could not be completed" unless user&.active?
-        raise ApplicationService::Error, "A new password is required" if update_params[:password].blank?
+        password = update_params[:password]
+        raise ApplicationService::Error, "A new password is required" if password.blank?
+        raise ApplicationService::Error, "Password confirmation does not match" unless password == update_params[:password_confirmation]
 
         user.update!(
-          password: update_params[:password],
+          password:,
           password_confirmation: update_params[:password_confirmation]
         )
         user.user_sessions.active.update_all(
@@ -52,6 +54,8 @@ module Api
           updated_at: Time.current
         )
         verification.consumed!
+        user.otp_verifications.password_reset.where(status: %i[pending verified])
+          .where.not(id: verification.id).update_all(status: OtpVerification.statuses.fetch(:expired))
       end
 
       head :no_content

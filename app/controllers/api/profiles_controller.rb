@@ -15,13 +15,15 @@ module Api
 
     def password
       return render_invalid_password unless current_user.authenticate(password_params[:current_password])
+      new_password = password_params[:password]
+      raise ApplicationService::Error, "A new password is required" if new_password.blank?
+      raise ApplicationService::Error, "Password confirmation does not match" unless new_password == password_params[:password_confirmation]
 
-      current_user.update!(
-        password: password_params[:password],
-        password_confirmation: password_params[:password_confirmation]
-      )
-      current_user.user_sessions.active.where.not(id: current_session.id)
-        .update_all(status: UserSession.statuses[:ended], ended_at: Time.current, updated_at: Time.current)
+      User.transaction do
+        current_user.update!(password: new_password, password_confirmation: password_params[:password_confirmation])
+        current_user.user_sessions.active.where.not(id: current_session.id)
+          .update_all(status: UserSession.statuses[:ended], ended_at: Time.current, updated_at: Time.current)
+      end
 
       head :no_content
     end

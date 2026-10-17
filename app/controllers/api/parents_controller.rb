@@ -28,8 +28,11 @@ module Api
     def password
       user = parent_user
       password = password_params.fetch(:password)
-      user.update!(password:, password_confirmation: password)
-      revoke_sessions(user)
+      raise ApplicationService::Error, "A new password is required" if password.blank?
+      User.transaction do
+        user.update!(password:, password_confirmation: password)
+        revoke_sessions(user)
+      end
       audit!(action: "parent.password_reset", target: user)
       head :no_content
     end

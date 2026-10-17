@@ -25,6 +25,7 @@ module EmailVerifications
       client_token = SecureRandom.urlsafe_base64(32)
       verification = create_verification(code, client_token)
       deliver(verification, code)
+      expire_previous_verifications(verification)
 
       Result.new(verification:, client_token:)
     end
@@ -32,7 +33,7 @@ module EmailVerifications
     private
 
     def enforce_rate_limits!
-      scope = @user.otp_verifications.where(purpose: @purpose)
+      scope = @user.otp_verifications.where(purpose: @purpose).where.not(status: :failed)
       if !@skip_resend_delay && scope.where(created_at: (@at - RESEND_DELAY)..).exists?
         raise Error, "Please wait before requesting another code"
       end
@@ -40,7 +41,6 @@ module EmailVerifications
     end
 
     def create_verification(code, client_token)
-      @user.otp_verifications.where(purpose: @purpose, status: :pending).update_all(status: :expired)
       @user.otp_verifications.create!(
         phone_e164: @user.phone_e164,
         purpose: @purpose,
@@ -48,6 +48,11 @@ module EmailVerifications
         expires_at: @at + CODE_TTL,
         metadata: { channel: "email", client_token_digest: Security::DigestValue.call(client_token) }
       )
+    end
+
+    def expire_previous_verifications(current)
+      @user.otp_verifications.where(purpose: @purpose, status: %i[pending verified])
+        .where.not(id: current.id).update_all(status: OtpVerification.statuses.fetch(:expired))
     end
 
     def deliver(verification, code)

@@ -85,6 +85,23 @@ class Api::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "does not claim a password change when the new password or confirmation is missing" do
+    user = create_user(role: :parent)
+    ParentProfile.create!(user:, verified_parent_phone_e164: user.phone_e164)
+    token = session_token_for(user)
+
+    [ nil, "NewValidPassword123!" ].each do |new_password|
+      patch "/api/profile/password", params: {
+        profile: { current_password: "ValidPassword123!", password: new_password }
+      }, headers: authorization_header(token), as: :json
+      assert_response :unprocessable_entity
+      assert user.reload.authenticate("ValidPassword123!")
+    end
+
+    get "/api/session", headers: authorization_header(token)
+    assert_response :success
+  end
+
   test "rejects unauthenticated profile access" do
     get "/api/profile"
 
